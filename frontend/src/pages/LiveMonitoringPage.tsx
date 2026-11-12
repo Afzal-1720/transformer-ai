@@ -99,7 +99,7 @@ export const LiveMonitoringPage: React.FC = () => {
       sensor_status: t.sensor_status,
       is_mock_data: t.is_mock_data ? 'YES' : 'NO',
     }));
-    exportToCsv(`${selectedTxId}_telemetry_stream`, rows);
+    exportToCsv('Transformer_1_telemetry_stream', rows);
   };
 
   if (loading && !txDetail) {
@@ -108,7 +108,7 @@ export const LiveMonitoringPage: React.FC = () => {
         <div className="flex items-center gap-3 text-cyan-400">
           <Activity className="h-6 w-6 animate-spin" />
           <span className="font-mono text-sm tracking-widest uppercase">
-            Loading Live Telemetry for {selectedTxId}...
+            Loading Live Telemetry for Transformer_1...
           </span>
         </div>
       </div>
@@ -217,12 +217,12 @@ export const LiveMonitoringPage: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-mono font-extrabold text-slate-100">
-                  {spec?.name} ({spec?.id})
+                  {spec?.name}
                 </h2>
                 <StatusBadge status={txDetail?.overall_condition || 'HEALTHY'} size="sm" />
               </div>
               <div className="text-xs text-slate-400">
-                Substation: <span className="font-semibold text-slate-200">{spec?.substation}</span> • Rated Capacity: <span className="font-semibold text-slate-200">{spec?.rated_kva} kVA</span> • Cooling: <span className="font-semibold text-slate-200">{spec?.cooling_type}</span> • Installed: <span className="font-semibold text-slate-200">{spec?.installation_year}</span>
+                Transformer: <span className="font-semibold text-slate-200">{spec?.name}</span> • Rated Capacity: <span className="font-semibold text-slate-200">{spec?.rated_kva} kVA</span> • Cooling: <span className="font-semibold text-slate-200">{spec?.cooling_type}</span> • Installed: <span className="font-semibold text-slate-200">{spec?.installation_year}</span>
               </div>
             </div>
           </div>

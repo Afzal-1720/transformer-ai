@@ -93,14 +93,7 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
               onChange={(e) => setSelectedTx(e.target.value)}
               className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:outline-hidden focus:border-cyan-500"
             >
-              <option value="TX-001">TX-001 — Substation North Feeder Unit 1 (100 Arms / 240 Vrms)</option>
-              <option value="TX-002">TX-002 — Substation North Feeder Unit 2 (125 Arms / 240 Vrms)</option>
-              <option value="TX-003">TX-003 — Substation East Commercial Unit 1 (150 Arms / 240 Vrms)</option>
-              <option value="TX-004">TX-004 — Substation East Retail Unit 2 (80 Arms / 240 Vrms)</option>
-              <option value="TX-005">TX-005 — Substation South Residential Unit 1 (100 Arms / 240 Vrms)</option>
-              <option value="TX-006">TX-006 — Substation South Residential Unit 2 (100 Arms / 240 Vrms)</option>
-              <option value="TX-007">TX-007 — Substation West Tech Park Unit 1 (200 Arms / 240 Vrms)</option>
-              <option value="TX-008">TX-008 — Substation West Data Center Unit 2 (175 Arms / 240 Vrms)</option>
+              <option value="TX-001">Transformer_1</option>
             </select>
           </div>
 

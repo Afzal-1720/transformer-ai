@@ -73,7 +73,7 @@ export const DashboardPage: React.FC = () => {
       inspection_required: t.inspection_required ? 'YES' : 'NO',
       recommended_action: t.recommended_action,
     }));
-    exportToCsv('TX-001_status', rows);
+    exportToCsv('Transformer_1_status', rows);
   };
 
   if (loading && !summary) {
@@ -255,7 +255,7 @@ export const DashboardPage: React.FC = () => {
               {monitoredTransformer.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-500">
-                    No telemetry available for TX-001.
+                    No telemetry available for Transformer_1.
                   </td>
                 </tr>
               ) : (
@@ -273,9 +273,7 @@ export const DashboardPage: React.FC = () => {
                       {/* Transformer ID & Substation */}
                       <td className="px-3.5 py-3">
                         <div className="font-mono font-bold text-slate-200">{t.id}</div>
-                        <div className="text-[11px] text-slate-400">
-                          {t.name} • <span className="text-cyan-400/80">{t.substation}</span>
-                        </div>
+                        <div className="text-[11px] text-cyan-400/80">{t.name}</div>
                       </td>
 
                       {/* Voltage & Deviation % */}
@@ -434,7 +432,7 @@ export const DashboardPage: React.FC = () => {
           {!summary?.recent_alerts || summary.recent_alerts.length === 0 ? (
             <div className="py-10 text-center text-xs text-slate-500 rounded-lg border border-slate-800/80 bg-slate-950/60">
               <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
-              No abnormal conditions detected. TX-001 is within normal limits.
+              No abnormal conditions detected. Transformer_1 is within normal limits.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -446,7 +444,7 @@ export const DashboardPage: React.FC = () => {
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-mono font-bold text-slate-200">
-                        {alert.transformer_id}
+                        Transformer_1
                       </div>
                       <span
                         className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${

@@ -175,7 +175,7 @@ export const AnomalyConditionPage: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Transformer ID:</span>
-              <span className="font-bold text-slate-200">{selectedTxId}</span>
+              <span className="font-bold text-slate-200">Transformer_1</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Measured Vrms:</span>
@@ -299,7 +299,7 @@ export const AnomalyConditionPage: React.FC = () => {
           {anomaliesList.length === 0 ? (
             <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-8 text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500 mb-2" />
-              <div className="text-sm font-bold text-slate-200">No Anomalies Detected on {selectedTxId}</div>
+              <div className="text-sm font-bold text-slate-200">No Anomalies Detected on Transformer_1</div>
               <p className="text-xs text-slate-400 mt-1">
                 Voltage deviation is within permissible limits (-10% to +6%), current is normal, winding hotspot temperature is safe, and load is steady.
               </p>

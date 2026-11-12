@@ -107,16 +107,16 @@ def get_dashboard_summary():
     # Overall monitored-transformer status determination
     if critical_count > 0 or critical_alerts_count > 0:
         fleet_status = "CRITICAL"
-        fleet_status_desc = "TX-001 is operating under critical anomaly conditions. Immediate inspection required."
+        fleet_status_desc = "Transformer_1 is operating under critical anomaly conditions. Immediate inspection required."
     elif inspection_required_count > 0:
         fleet_status = "INSPECTION_REQUIRED"
-        fleet_status_desc = "TX-001 is flagged for engineering inspection due to abnormal readings or fluctuations."
+        fleet_status_desc = "Transformer_1 is flagged for engineering inspection due to abnormal readings or fluctuations."
     elif warning_count > 0:
         fleet_status = "WARNING"
-        fleet_status_desc = "TX-001 is exhibiting minor operational deviations."
+        fleet_status_desc = "Transformer_1 is exhibiting minor operational deviations."
     else:
         fleet_status = "HEALTHY"
-        fleet_status_desc = "TX-001 is operating within normal voltage, current, and thermal limits."
+        fleet_status_desc = "Transformer_1 is operating within normal voltage, current, and thermal limits."
 
     return {
         "kpis": {

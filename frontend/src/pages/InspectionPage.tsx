@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -18,15 +17,13 @@ import { formatDateTime, formatDate } from '../utils/formatters';
 import type { InspectionRecord, TransformerDetail, InspectionPriority } from '../types';
 
 export const InspectionPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const txFilterParam = searchParams.get('tx') || 'ALL';
+  const transformerId = 'TX-001';
 
   const [inspections, setInspections] = useState<InspectionRecord[]>([]);
   const [transformers, setTransformers] = useState<TransformerDetail[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filters
-  const [selectedTxFilter, setSelectedTxFilter] = useState<string>(txFilterParam);
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -37,7 +34,6 @@ export const InspectionPage: React.FC = () => {
   const [completionNotes, setCompletionNotes] = useState<string>('');
 
   // Create form state
-  const [createTxId, setCreateTxId] = useState<string>('TX-001');
   const [createReason, setCreateReason] = useState<string>('');
   const [createPriority, setCreatePriority] = useState<InspectionPriority>('High');
   const [createAction, setCreateAction] = useState<string>('');
@@ -48,7 +44,7 @@ export const InspectionPage: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       const [inspList, fleet] = await Promise.all([
-        api.getInspections(),
+        api.getInspections({ transformer_id: transformerId }),
         api.getTransformers(),
       ]);
       setInspections(inspList);
@@ -109,7 +105,7 @@ export const InspectionPage: React.FC = () => {
     setSubmitting(true);
     try {
       await api.createInspection({
-        transformer_id: createTxId,
+        transformer_id: transformerId,
         reason: createReason,
         priority: createPriority,
         recommended_action: createAction,
@@ -131,7 +127,7 @@ export const InspectionPage: React.FC = () => {
   // Filtered records
   const filteredRecords = useMemo(() => {
     return inspections.filter((rec) => {
-      if (selectedTxFilter !== 'ALL' && rec.transformer_id !== selectedTxFilter) return false;
+      if (rec.transformer_id !== transformerId) return false;
       if (selectedStatusFilter !== 'ALL' && rec.status !== selectedStatusFilter) return false;
       if (selectedPriorityFilter !== 'ALL' && rec.priority !== selectedPriorityFilter) return false;
       if (searchQuery.trim()) {
@@ -145,7 +141,7 @@ export const InspectionPage: React.FC = () => {
       }
       return true;
     });
-  }, [inspections, selectedTxFilter, selectedStatusFilter, selectedPriorityFilter, searchQuery]);
+  }, [inspections, selectedStatusFilter, selectedPriorityFilter, searchQuery, transformerId]);
 
   const handleExportCsv = () => {
     if (!filteredRecords.length) return;
@@ -239,7 +235,7 @@ export const InspectionPage: React.FC = () => {
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-cyan-500/30 bg-slate-900/80 p-4">
-          <div className="text-xs uppercase text-slate-400 font-semibold">Units Requiring Inspection</div>
+          <div className="text-xs uppercase text-slate-400 font-semibold">Transformer Requiring Inspection</div>
           <div className="text-2xl font-mono font-bold text-cyan-300 mt-2">
             {unitsNeedingInspection.length}
           </div>
@@ -292,19 +288,6 @@ export const InspectionPage: React.FC = () => {
                 className="w-48 rounded-lg border border-slate-700 bg-slate-950 py-1.5 pl-8 pr-3 text-xs text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
               />
             </div>
-
-            <select
-              value={selectedTxFilter}
-              onChange={(e) => setSelectedTxFilter(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
-            >
-              <option value="ALL">All Transformers</option>
-              {transformers.map((t) => (
-                <option key={t.spec.id} value={t.spec.id}>
-                  {t.spec.id} ({t.spec.name})
-                </option>
-              ))}
-            </select>
 
             <select
               value={selectedStatusFilter}
@@ -361,7 +344,7 @@ export const InspectionPage: React.FC = () => {
                       <td className="px-3.5 py-3">
                         <div className="font-mono font-bold text-slate-200">{r.id}</div>
                         <div className="text-[11px] text-cyan-400 font-mono">
-                          {r.transformer_id} • {r.transformer_name}
+                          {r.transformer_name}
                         </div>
                       </td>
 
@@ -481,7 +464,7 @@ export const InspectionPage: React.FC = () => {
               <div>
                 <span className="text-slate-400">Unit:</span>{' '}
                 <span className="font-mono font-bold text-cyan-400">
-                  {completingRecord.transformer_id} ({completingRecord.transformer_name})
+                  {completingRecord.transformer_name}
                 </span>
               </div>
               <div>
@@ -548,17 +531,9 @@ export const InspectionPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-400 font-medium mb-1">Transformer:</label>
-                  <select
-                    value={createTxId}
-                    onChange={(e) => setCreateTxId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-200 focus:border-cyan-500 focus:outline-none"
-                  >
-                    {transformers.map((t) => (
-                      <option key={t.spec.id} value={t.spec.id}>
-                        {t.spec.id} ({t.spec.name})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900 p-2 font-mono text-cyan-300">
+                    Transformer_1
+                  </div>
                 </div>
 
                 <div>

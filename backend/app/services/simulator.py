@@ -10,89 +10,19 @@ from app.services.storage import storage
 from app.services.condition_evaluator import condition_evaluator
 
 # =========================================================================
-# CANONICAL TRANSFORMER FLEET CONFIGURATION
-# All units rated at standard low-voltage distribution nominal 240.0 Vrms.
+# CANONICAL MONITORED TRANSFORMER CONFIGURATION
+# Rated at standard low-voltage distribution nominal 240.0 Vrms.
 # =========================================================================
 INITIAL_TRANSFORMERS: List[TransformerSpec] = [
     TransformerSpec(
         id="TX-001",
-        name="Substation North — Feeder Alpha Unit 1",
+        name="Transformer_1",
         substation="North Industrial Zone",
         rated_vrms=240.0,
         rated_irms=100.0,
         rated_kva=24.0,
         cooling_type="ONAN",
         installation_year=2018
-    ),
-    TransformerSpec(
-        id="TX-002",
-        name="Substation North — Feeder Alpha Unit 2",
-        substation="North Industrial Zone",
-        rated_vrms=240.0,
-        rated_irms=125.0,
-        rated_kva=30.0,
-        cooling_type="ONAN",
-        installation_year=2020
-    ),
-    TransformerSpec(
-        id="TX-003",
-        name="Substation East — Commercial Plaza Unit 1",
-        substation="East Commercial District",
-        rated_vrms=240.0,
-        rated_irms=150.0,
-        rated_kva=36.0,
-        cooling_type="ONAN",
-        installation_year=2019
-    ),
-    TransformerSpec(
-        id="TX-004",
-        name="Substation East — Retail Centre Unit 2",
-        substation="East Commercial District",
-        rated_vrms=240.0,
-        rated_irms=80.0,
-        rated_kva=19.2,
-        cooling_type="ONAN",
-        installation_year=2021
-    ),
-    TransformerSpec(
-        id="TX-005",
-        name="Substation South — Metro Residential Unit 1",
-        substation="South Residential Sector",
-        rated_vrms=240.0,
-        rated_irms=100.0,
-        rated_kva=24.0,
-        cooling_type="ONAN",
-        installation_year=2017
-    ),
-    TransformerSpec(
-        id="TX-006",
-        name="Substation South — Metro Residential Unit 2",
-        substation="South Residential Sector",
-        rated_vrms=240.0,
-        rated_irms=100.0,
-        rated_kva=24.0,
-        cooling_type="ONAN",
-        installation_year=2016
-    ),
-    TransformerSpec(
-        id="TX-007",
-        name="Substation West — Technology Park Unit 1",
-        substation="West High-Tech Corridor",
-        rated_vrms=240.0,
-        rated_irms=200.0,
-        rated_kva=48.0,
-        cooling_type="ONAF",
-        installation_year=2022
-    ),
-    TransformerSpec(
-        id="TX-008",
-        name="Substation West — Data Center Unit 2",
-        substation="West High-Tech Corridor",
-        rated_vrms=240.0,
-        rated_irms=175.0,
-        rated_kva=42.0,
-        cooling_type="ONAF",
-        installation_year=2023
     ),
 ]
 
@@ -104,8 +34,8 @@ class TelemetrySimulator:
         self.ongoing_alert_categories: Dict[str, set] = {}
 
     def initialize_system(self):
-        """Populate fleet, generate 48 hours of historical readings, and seed initial inspection records."""
-        # 1. Register fleet
+        """Populate the monitored transformer, generate history, and seed an inspection record."""
+        # 1. Register the monitored transformer
         for spec in INITIAL_TRANSFORMERS:
             storage.set_transformer_spec(spec)
             self.temperature_state[spec.id] = 68.0
@@ -133,7 +63,7 @@ class TelemetrySimulator:
             InspectionRecord(
                 id="INSP-2026-001",
                 transformer_id="TX-001",
-                transformer_name="Substation North — Feeder Alpha Unit 1",
+                transformer_name="Transformer_1",
                 reason="Routine visual and terminal connection inspection",
                 priority=InspectionPriority.ROUTINE,
                 status=InspectionStatus.COMPLETED,
@@ -142,20 +72,6 @@ class TelemetrySimulator:
                 recommended_action="Inspect bushing terminals and check dielectric moisture",
                 assigned_technician="Marcus Vance (Field Lead)",
                 notes="Terminals torqued to specification. Dielectric moisture within 14% RH.",
-                is_mock_data=True
-            ),
-            InspectionRecord(
-                id="INSP-2026-002",
-                transformer_id="TX-003",
-                transformer_name="Substation East — Commercial Plaza Unit 1",
-                reason="Periodic load profile verification under commercial midday peak",
-                priority=InspectionPriority.MEDIUM,
-                status=InspectionStatus.ACKNOWLEDGED,
-                detected_at=now - timedelta(days=3),
-                acknowledged_at=now - timedelta(days=2),
-                recommended_action="Inspect connected load and verify secondary cable thermal margins",
-                assigned_technician="Elena Rostova",
-                notes="Assigned to Field Unit 2. Scheduled for onsite thermography.",
                 is_mock_data=True
             )
         ]
@@ -331,7 +247,7 @@ class TelemetrySimulator:
                         triggering_value=float(reading.vrms if "Voltage" in anm.detected_parameter else reading.irms if "Current" in anm.detected_parameter else reading.winding_hotspot_temperature),
                         threshold_value=float(settings.SUPPLY_VOLTAGE_MAX if "Over-Voltage" in anm.anomaly_name else settings.SUPPLY_VOLTAGE_MIN if "Under-Voltage" in anm.anomaly_name else spec.rated_irms),
                         unit="V" if "Voltage" in anm.detected_parameter else "A" if "Current" in anm.detected_parameter else "°C",
-                        message=f"{anm.anomaly_name} detected on {spec.id} ({anm.measured_value}). {anm.applicable_threshold}.",
+                        message=f"{anm.anomaly_name} detected on {spec.name} ({anm.measured_value}). {anm.applicable_threshold}.",
                         recommended_action=anm.recommended_action,
                         inspection_recommended=True,
                         status=AlertStatus.ACTIVE,

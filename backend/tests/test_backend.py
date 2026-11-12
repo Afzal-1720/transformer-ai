@@ -227,7 +227,8 @@ def test_rest_api_endpoints():
         res = client.get("/api/transformers")
         assert res.status_code == 200
         fleet = res.json()
-        assert len(fleet) >= 8
+        assert len(fleet) == 1
+        assert fleet[0]["spec"]["name"] == "Transformer_1"
         assert "voltage_deviation_pct" in fleet[0]
         assert "current_deviation_pct" in fleet[0]
         assert "loading_pct" in fleet[0]

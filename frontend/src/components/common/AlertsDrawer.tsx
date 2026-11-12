@@ -165,8 +165,8 @@ export const AlertsDrawer: React.FC<AlertsDrawerProps> = ({ isOpen, onClose, onA
             <div className="py-16 text-center text-slate-500">
               <CheckCircle2 className="w-10 h-10 text-emerald-500/50 mx-auto mb-2" />
               <p className="text-sm font-medium text-slate-300">No matching alarms found</p>
-              <p className="text-xs text-slate-500 mt-1">
-                All transformers operating within configured safety bounds or filter excludes results.
+                <p className="text-xs text-slate-500 mt-1">
+                Transformer_1 is operating within configured safety bounds or filters exclude results.
               </p>
             </div>
           ) : (
@@ -194,9 +194,8 @@ export const AlertsDrawer: React.FC<AlertsDrawerProps> = ({ isOpen, onClose, onA
                         {alert.severity}
                       </span>
                       <span className="font-mono text-xs font-semibold text-slate-300">
-                        {alert.transformer_id}
+                        Transformer_1
                       </span>
-                      <span className="text-xs text-slate-500">• {alert.substation}</span>
                     </div>
 
                     <div className="text-right text-[11px] text-slate-400">
