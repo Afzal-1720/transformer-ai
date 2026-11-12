@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -7,8 +7,6 @@ import {
   ShieldAlert,
   Zap,
   TrendingUp,
-  Search,
-  ArrowUpDown,
   Download,
   ExternalLink,
   ClipboardCheck,
@@ -33,13 +31,6 @@ export const DashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Table filters & sorting
-  const [searchQuery, setSearchQuery] = useState('');
-  const [substationFilter, setSubstationFilter] = useState('ALL');
-  const [conditionFilter, setConditionFilter] = useState('ALL');
-  const [sortField, setSortField] = useState<'id' | 'load' | 'vrms' | 'temp'>('load');
-  const [sortAsc, setSortAsc] = useState(false);
-
   const fetchData = useCallback(async () => {
     try {
       const sum = await api.getDashboardSummary();
@@ -57,53 +48,7 @@ export const DashboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Unique substations for filter dropdown
-  const substations = useMemo(() => {
-    if (!summary) return [];
-    const set = new Set(summary.transformer_summaries.map((t) => t.substation));
-    return Array.from(set);
-  }, [summary]);
-
-  // Filtered & sorted fleet table
-  const filteredFleet = useMemo(() => {
-    if (!summary) return [];
-    let result = [...summary.transformer_summaries];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.id.toLowerCase().includes(q) ||
-          t.name.toLowerCase().includes(q) ||
-          t.substation.toLowerCase().includes(q)
-      );
-    }
-
-    if (substationFilter !== 'ALL') {
-      result = result.filter((t) => t.substation === substationFilter);
-    }
-
-    if (conditionFilter !== 'ALL') {
-      result = result.filter((t) => t.overall_condition === conditionFilter);
-    }
-
-    result.sort((a, b) => {
-      if (sortField === 'id') {
-        return sortAsc ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
-      } else if (sortField === 'load') {
-        return sortAsc ? a.loading_pct - b.loading_pct : b.loading_pct - a.loading_pct;
-      } else if (sortField === 'vrms') {
-        return sortAsc ? a.vrms - b.vrms : b.vrms - a.vrms;
-      } else if (sortField === 'temp') {
-        return sortAsc
-          ? a.winding_hotspot_temperature - b.winding_hotspot_temperature
-          : b.winding_hotspot_temperature - a.winding_hotspot_temperature;
-      }
-      return 0;
-    });
-
-    return result;
-  }, [summary, searchQuery, substationFilter, conditionFilter, sortField, sortAsc]);
+  const monitoredTransformer = summary?.transformer_summaries ?? [];
 
   const handleExportCsv = () => {
     if (!summary || summary.transformer_summaries.length === 0) return;
@@ -128,7 +73,7 @@ export const DashboardPage: React.FC = () => {
       inspection_required: t.inspection_required ? 'YES' : 'NO',
       recommended_action: t.recommended_action,
     }));
-    exportToCsv('transformer_fleet_status', rows);
+    exportToCsv('TX-001_status', rows);
   };
 
   if (loading && !summary) {
@@ -145,7 +90,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   const kpis = summary?.kpis;
-  const fleet = summary?.fleet_condition;
+  const conditionSummary = summary?.fleet_condition;
 
   return (
     <div className="space-y-6">
@@ -154,7 +99,7 @@ export const DashboardPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-black tracking-tight text-slate-100 uppercase">
-              Transformer Fleet Dashboard
+              Transformer Dashboard
             </h1>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-950/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
@@ -173,7 +118,7 @@ export const DashboardPage: React.FC = () => {
             className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
           >
             <Download className="h-4 w-4 text-cyan-400" />
-            Export Fleet CSV
+            Export Transformer CSV
           </button>
         </div>
       </div>
@@ -194,10 +139,10 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Fleet KPI Metric Cards */}
+      {/* Transformer KPI Metric Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard
-          title="Monitored Transformers"
+          title="Monitored Transformer"
           value={kpis?.total_transformers ?? 0}
           subtitle={`${kpis?.online_transformers ?? 0} Sensors Online`}
           icon={<Zap className="h-5 w-5" />}
@@ -218,7 +163,7 @@ export const DashboardPage: React.FC = () => {
           variant={(kpis?.active_critical_alerts ?? 0) > 0 ? 'rose' : 'emerald'}
         />
         <MetricCard
-          title="Avg Fleet Load"
+          title="Transformer Load"
           value={(kpis?.avg_load_percentage ?? 0).toFixed(1)}
           unit="%"
           subtitle="Rated capacity utilization"
@@ -234,48 +179,48 @@ export const DashboardPage: React.FC = () => {
         />
       </div>
 
-      {/* Fleet Condition & Health Assessment Status Bar */}
-      {fleet && (
+      {/* Transformer Condition & Health Assessment Status Bar */}
+      {conditionSummary && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Fleet Operating Health Status:
+                  Transformer Operating Health Status:
                 </span>
-                <StatusBadge status={fleet.status} />
+                <StatusBadge status={conditionSummary.status} />
               </div>
               <p className="text-sm font-medium text-slate-300">
-                {fleet.description}
+                {conditionSummary.description}
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs font-mono">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                 <span className="text-slate-400">Healthy:</span>
-                <span className="font-bold text-slate-200">{fleet.healthy}</span>
+                <span className="font-bold text-slate-200">{conditionSummary.healthy}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                 <span className="text-slate-400">Warning:</span>
-                <span className="font-bold text-slate-200">{fleet.warning}</span>
+                <span className="font-bold text-slate-200">{conditionSummary.warning}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
                 <span className="text-slate-400">Critical:</span>
-                <span className="font-bold text-slate-200">{fleet.critical}</span>
+                <span className="font-bold text-slate-200">{conditionSummary.critical}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
                 <span className="text-slate-400">Inspect Req:</span>
-                <span className="font-bold text-cyan-300">{fleet.inspection_required}</span>
+                <span className="font-bold text-cyan-300">{conditionSummary.inspection_required}</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Fleet Overview Table */}
+      {/* Monitored Transformer Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -287,44 +232,6 @@ export const DashboardPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Search & Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search ID / Substation..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 rounded-lg border border-slate-700 bg-slate-950 py-1.5 pl-8 pr-3 text-xs text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
-              />
-            </div>
-
-            <select
-              value={substationFilter}
-              onChange={(e) => setSubstationFilter(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
-            >
-              <option value="ALL">All Substations</option>
-              {substations.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={conditionFilter}
-              onChange={(e) => setConditionFilter(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
-            >
-              <option value="ALL">All Conditions</option>
-              <option value="HEALTHY">Healthy</option>
-              <option value="WARNING">Warning</option>
-              <option value="CRITICAL">Critical</option>
-              <option value="INSPECTION_REQUIRED">Inspection Required</option>
-            </select>
-          </div>
         </div>
 
         {/* Table Content */}
@@ -332,56 +239,12 @@ export const DashboardPage: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="border-b border-slate-800 bg-slate-950/60 font-semibold uppercase tracking-wider text-slate-400">
               <tr>
-                <th
-                  className="cursor-pointer px-3.5 py-3 hover:text-slate-200"
-                  onClick={() => {
-                    setSortField('id');
-                    setSortAsc(!sortAsc);
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Transformer
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
-                <th
-                  className="cursor-pointer px-3.5 py-3 hover:text-slate-200"
-                  onClick={() => {
-                    setSortField('vrms');
-                    setSortAsc(!sortAsc);
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Voltage (Vrms) & Dev %
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
+                <th className="px-3.5 py-3">Transformer</th>
+                <th className="px-3.5 py-3">Voltage (Vrms) & Dev %</th>
                 <th className="px-3.5 py-3">Statutory Range (216–254V)</th>
                 <th className="px-3.5 py-3">Current (Arms) & Dev %</th>
-                <th
-                  className="cursor-pointer px-3.5 py-3 hover:text-slate-200"
-                  onClick={() => {
-                    setSortField('load');
-                    setSortAsc(!sortAsc);
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Loading %
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
-                <th
-                  className="cursor-pointer px-3.5 py-3 hover:text-slate-200"
-                  onClick={() => {
-                    setSortField('temp');
-                    setSortAsc(!sortAsc);
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Winding Hotspot
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
+                <th className="px-3.5 py-3">Loading %</th>
+                <th className="px-3.5 py-3">Winding Hotspot</th>
                 <th className="px-3.5 py-3">Moisture</th>
                 <th className="px-3.5 py-3">Overall Condition</th>
                 <th className="px-3.5 py-3">Inspection</th>
@@ -389,14 +252,14 @@ export const DashboardPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredFleet.length === 0 ? (
+              {monitoredTransformer.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-500">
-                    No transformers found matching the selected criteria.
+                    No telemetry available for TX-001.
                   </td>
                 </tr>
               ) : (
-                filteredFleet.map((t) => {
+                monitoredTransformer.map((t) => {
                   const isVoltageDevNormal = t.voltage_status.includes('Normal');
                   const isSupplyNormal = t.supply_status.includes('Normal');
                   const isCurrentNormal = t.current_dev_pct <= 10.0;
@@ -571,7 +434,7 @@ export const DashboardPage: React.FC = () => {
           {!summary?.recent_alerts || summary.recent_alerts.length === 0 ? (
             <div className="py-10 text-center text-xs text-slate-500 rounded-lg border border-slate-800/80 bg-slate-950/60">
               <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
-              No abnormal conditions detected. All transformers within normal limits.
+              No abnormal conditions detected. TX-001 is within normal limits.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

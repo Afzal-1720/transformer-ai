@@ -1,4 +1,3 @@
-from collections import defaultdict
 from fastapi import APIRouter
 from app.services.storage import storage
 from app.services.condition_evaluator import condition_evaluator
@@ -6,13 +5,17 @@ from app.models.transformer import OverallCondition
 from app.models.alert import AlertStatus, AlertSeverity
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+MONITORED_TRANSFORMER_ID = "TX-001"
 
 @router.get("/summary")
 def get_dashboard_summary():
     """
-    Returns fleet-wide executive summary for the main Dashboard page.
+    Returns the executive summary for the monitored transformer.
     """
-    specs = storage.get_transformers()
+    specs = [
+        spec for spec in storage.get_transformers()
+        if spec.id == MONITORED_TRANSFORMER_ID
+    ]
     total_transformers = len(specs)
 
     online_count = 0
@@ -78,11 +81,14 @@ def get_dashboard_summary():
     avg_load_pct = round(total_load_pct / max(valid_count, 1), 1)
 
     # Active alerts
-    active_alerts = storage.get_alerts(status=AlertStatus.ACTIVE)
+    active_alerts = [
+        alert for alert in storage.get_alerts(status=AlertStatus.ACTIVE)
+        if alert.transformer_id == MONITORED_TRANSFORMER_ID
+    ]
     critical_alerts_count = len([a for a in active_alerts if a.severity == AlertSeverity.CRITICAL])
 
     # Pending inspections
-    pending_inspections = storage.get_pending_inspections_count()
+    pending_inspections = storage.get_pending_inspections_count(MONITORED_TRANSFORMER_ID)
 
     # Aggregate 24-point load & thermal trend from history of the first transformer
     sample_id = specs[0].id if specs else None
@@ -98,19 +104,19 @@ def get_dashboard_summary():
             "moisture_pct": round(point.moisture, 1)
         })
 
-    # Overall fleet status determination
+    # Overall monitored-transformer status determination
     if critical_count > 0 or critical_alerts_count > 0:
         fleet_status = "CRITICAL"
-        fleet_status_desc = f"{critical_count} transformer(s) operating under critical anomaly conditions. Immediate inspection required."
+        fleet_status_desc = "TX-001 is operating under critical anomaly conditions. Immediate inspection required."
     elif inspection_required_count > 0:
         fleet_status = "INSPECTION_REQUIRED"
-        fleet_status_desc = f"{inspection_required_count} unit(s) flagged for engineering inspection due to abnormal readings or fluctuations."
+        fleet_status_desc = "TX-001 is flagged for engineering inspection due to abnormal readings or fluctuations."
     elif warning_count > 0:
         fleet_status = "WARNING"
-        fleet_status_desc = f"{warning_count} unit(s) exhibiting minor operational deviations."
+        fleet_status_desc = "TX-001 is exhibiting minor operational deviations."
     else:
         fleet_status = "HEALTHY"
-        fleet_status_desc = "All monitored transformers operating within normal voltage, current, and thermal limits."
+        fleet_status_desc = "TX-001 is operating within normal voltage, current, and thermal limits."
 
     return {
         "kpis": {

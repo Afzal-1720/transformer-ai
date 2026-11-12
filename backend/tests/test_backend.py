@@ -261,8 +261,9 @@ def test_rest_api_endpoints():
         assert res.status_code == 200
         summary = res.json()
         assert "kpis" in summary
-        assert summary["kpis"]["total_transformers"] >= 8
+        assert summary["kpis"]["total_transformers"] == 1
         assert "transformer_summaries" in summary
+        assert [transformer["id"] for transformer in summary["transformer_summaries"]] == ["TX-001"]
 
         # 8. Alerts
         res = client.get("/api/alerts")
