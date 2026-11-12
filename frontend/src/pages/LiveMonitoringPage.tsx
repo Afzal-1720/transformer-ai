@@ -1,25 +1,27 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
   Download,
-  Gauge,
   Thermometer,
   Zap,
-  Radio,
   AlertOctagon,
-  Cpu,
+  Droplets,
+  ShieldAlert,
+  ArrowRight,
+  Info,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useSimulation } from '../context/SimulationContext';
-import { MetricCard } from '../components/common/MetricCard';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { RiskBadge } from '../components/common/RiskBadge';
 import { exportToCsv } from '../utils/exportCsv';
 import {
-  formatApparentPower,
   formatVoltage,
+  formatCurrent,
+  formatTemp,
+  formatMoisture,
+  formatPercentage,
   formatDateTime,
 } from '../utils/formatters';
 import type { TransformerDetail, TelemetryReading } from '../types';
@@ -29,13 +31,14 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 
 export const LiveMonitoringPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const txParam = searchParams.get('tx') || 'TX-101';
+  const navigate = useNavigate();
+  const txParam = searchParams.get('tx') || 'TX-001';
 
   const { status, clearAnomaly } = useSimulation();
 
@@ -84,391 +87,655 @@ export const LiveMonitoringPage: React.FC = () => {
   const telemetry = txDetail?.telemetry;
   const spec = txDetail?.spec;
 
-  const isStale = telemetry?.communication_status === 'STALE';
-  const isOffline = telemetry?.communication_status === 'OFFLINE';
-
+  const isStale = telemetry?.sensor_status === 'STALE';
+  const isOffline = telemetry?.sensor_status === 'OFFLINE' || telemetry?.sensor_status === 'CONNECTION_LOST';
   const activeAnomaly = status?.active_anomalies?.[selectedTxId];
 
   // Chart data formatting
   const chartData = useMemo(() => {
     return telemetryHistory.map((t) => ({
       time: formatDateTime(t.timestamp),
-      load_pct: t.load_percentage,
-      oil_temp: t.oil_temp_c,
-      winding_temp: t.winding_temp_c,
-      voltage_v: t.voltage_v,
-      current_a: t.current_a,
-      active_kw: t.active_power_kw,
+      vrms: t.vrms,
+      irms: t.irms,
+      winding_hotspot_temperature: t.winding_hotspot_temperature,
+      moisture: t.moisture,
     }));
   }, [telemetryHistory]);
 
-  const handleExportTelemetry = () => {
+  const handleExportCsv = () => {
+    if (!telemetryHistory.length) return;
     const rows = telemetryHistory.map((t) => ({
-      Timestamp: t.timestamp,
-      TransformerID: t.transformer_id,
-      LoadPct: t.load_percentage,
-      ActivePowerKw: t.active_power_kw,
-      ApparentPowerKva: t.apparent_power_kva,
-      ReactivePowerKvar: t.reactive_power_kvar,
-      VoltageV: t.voltage_v,
-      CurrentA: t.current_a,
-      PowerFactor: t.power_factor,
-      FrequencyHz: t.frequency_hz,
-      OilTempC: t.oil_temp_c,
-      WindingTempC: t.winding_temp_c,
-      CommStatus: t.communication_status,
+      transformer_id: t.transformer_id,
+      timestamp: t.timestamp,
+      vrms_measured: t.vrms.toFixed(2),
+      rated_vrms: '240.0',
+      voltage_deviation_pct: (((t.vrms - 240.0) / 240.0) * 100).toFixed(2),
+      irms_measured: t.irms.toFixed(2),
+      rated_irms: spec?.rated_irms.toFixed(1) || '104.2',
+      winding_hotspot_temperature_c: t.winding_hotspot_temperature.toFixed(1),
+      moisture_pct_rh: t.moisture.toFixed(1),
+      sensor_status: t.sensor_status,
+      is_mock_data: t.is_mock_data ? 'YES' : 'NO',
     }));
-    exportToCsv(`${selectedTxId}_telemetry_log`, rows);
+    exportToCsv(`${selectedTxId}_telemetry_stream`, rows);
   };
 
   if (loading && !txDetail) {
     return (
-      <div className="flex h-96 items-center justify-center text-slate-400 font-mono text-sm animate-pulse">
-        CONNECTING TO SCADA TELEMETRY FEED...
+      <div className="flex h-96 items-center justify-center">
+        <div className="flex items-center gap-3 text-cyan-400">
+          <Activity className="h-6 w-6 animate-spin" />
+          <span className="font-mono text-sm tracking-widest uppercase">
+            Loading Live Telemetry for {selectedTxId}...
+          </span>
+        </div>
       </div>
     );
   }
 
+  // Voltage checks
+  const vDevPct = txDetail?.voltage_deviation_pct ?? 0;
+  const isVDevNormal = vDevPct >= -10.0 && vDevPct <= 6.0;
+  const isVSupplyNormal = (telemetry?.vrms ?? 240) >= 216.0 && (telemetry?.vrms ?? 240) <= 254.0;
+
+  // Current checks
+  const iDevPct = txDetail?.current_deviation_pct ?? 0;
+  const isIDevNormal = iDevPct <= 10.0;
+
   return (
     <div className="space-y-6">
-      {/* Selector & Actions Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Radio className="w-4 h-4 text-cyan-400" />
-            Asset:
-          </label>
-          <select
-            value={selectedTxId}
-            onChange={(e) => handleSelectTransformer(e.target.value)}
-            className="rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm font-semibold text-cyan-300 focus:outline-hidden focus:border-cyan-500"
-          >
-            {transformers.map((t) => (
-              <option key={t.spec.id} value={t.spec.id}>
-                {t.spec.id} — {t.spec.name} ({t.spec.rated_capacity_kva} kVA, {t.spec.zone})
-              </option>
-            ))}
-          </select>
-
-          {txDetail && (
-            <div className="flex items-center gap-2">
-              <StatusBadge status={txDetail.telemetry.communication_status} />
-              <RiskBadge level={txDetail.risk_level} score={txDetail.risk_score} />
-            </div>
-          )}
+      {/* Page Header & Selector Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-black tracking-tight text-slate-100 uppercase">
+              Live Parameter Monitoring
+            </h1>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-950/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              Real-Time Feed
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            High-precision voltage deviation, current load analysis, winding hotspot telemetry, and statutory compliance checks.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Time range selector */}
-          <div className="flex rounded-lg bg-slate-950 border border-slate-800 p-0.5 text-xs font-mono">
-            {[
-              { label: '15m', limit: 15 },
-              { label: '1h', limit: 60 },
-              { label: '6h', limit: 150 },
-              { label: '24h', limit: 300 },
-            ].map((r) => (
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center rounded-xl bg-slate-900 border border-slate-800 p-0.5 text-xs font-mono">
+            {[30, 60, 120].map((limit) => (
               <button
-                key={r.label}
-                onClick={() => setTimeRangeLimit(r.limit)}
-                className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                  timeRangeLimit === r.limit
-                    ? 'bg-cyan-500 text-slate-950 font-bold'
+                key={limit}
+                onClick={() => setTimeRangeLimit(limit)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  timeRangeLimit === limit
+                    ? 'bg-cyan-500 text-slate-950'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {r.label}
+                {limit} pts
               </button>
             ))}
           </div>
-
           <button
-            onClick={handleExportTelemetry}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-300 transition-colors"
+            onClick={() => navigate(`/anomalies?tx=${selectedTxId}`)}
+            className="flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-3.5 py-2 text-xs font-semibold text-cyan-300 transition-all hover:bg-cyan-900/60"
           >
-            <Download className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Export CSV</span>
+            <ShieldAlert className="h-4 w-4" />
+            Anomaly & Condition Assessment
+            <ArrowRight className="h-3 w-3" />
+          </button>
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900/80 px-3.5 py-2 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
+          >
+            <Download className="h-4 w-4 text-cyan-400" />
+            Export CSV
           </button>
         </div>
       </div>
 
-      {/* Sensor / Data Quality Warning Banner if Stale or Offline */}
-      {isOffline && (
-        <div className="p-4 rounded-xl bg-rose-950/70 border border-rose-800 text-rose-200 flex items-start gap-3">
-          <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
-          <div className="text-xs">
-            <h4 className="font-bold text-sm">CRITICAL SENSOR COMMUNICATION FAILURE (OFFLINE)</h4>
-            <p className="mt-1">
-              No live telemetry packets received from {selectedTxId} RTU. Sensor channel marked OFFLINE. Measurements below represent last cached historical snapshot and MUST NOT be treated as active real-time conditions.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Transformer Selector Strip */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {transformers.map((t) => {
+          const isSelected = t.spec.id === selectedTxId;
+          const isHealthy = t.overall_condition === 'HEALTHY';
+          const isCritical = t.overall_condition === 'CRITICAL';
+          const isInspect = t.overall_condition === 'INSPECTION_REQUIRED';
 
-      {isStale && !isOffline && (
-        <div className="p-4 rounded-xl bg-amber-950/70 border border-amber-800 text-amber-200 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <h4 className="font-bold text-sm">TELEMETRY DATA QUALITY WARNING: STALE SENSOR FEED</h4>
-            <p className="mt-1">
-              Sensor readings have frozen with zero delta variance across successive SCADA polling cycles. Check remote terminal unit (RTU) firmware and A/D converter sampling.
-            </p>
-          </div>
-        </div>
-      )}
+          return (
+            <button
+              key={t.spec.id}
+              onClick={() => handleSelectTransformer(t.spec.id)}
+              className={`flex shrink-0 items-center gap-2.5 rounded-xl border px-3.5 py-2 transition-all ${
+                isSelected
+                  ? 'border-cyan-500 bg-cyan-950/40 shadow-[0_0_15px_rgba(0,242,254,0.15)]'
+                  : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isCritical
+                    ? 'bg-rose-500 animate-ping'
+                    : isInspect
+                    ? 'bg-amber-400'
+                    : isHealthy
+                    ? 'bg-emerald-400'
+                    : 'bg-amber-400'
+                }`}
+              />
+              <div className="text-left">
+                <div
+                  className={`text-xs font-mono font-bold ${
+                    isSelected ? 'text-cyan-300' : 'text-slate-300'
+                  }`}
+                >
+                  {t.spec.id}
+                </div>
+                <div className="text-[10px] text-slate-500">{t.spec.substation}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Active Anomaly Banner */}
       {activeAnomaly && (
-        <div className="p-4 rounded-xl bg-purple-950/60 border border-purple-700/80 text-purple-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 text-xs">
-            <Activity className="w-4 h-4 text-purple-400 animate-spin" />
-            <span>
-              <strong>Active Demonstration Anomaly: </strong>
-              <span className="uppercase font-mono font-bold text-purple-300">
-                {activeAnomaly.type}
-              </span> ({activeAnomaly.severity} Severity)
-            </span>
+        <div className="flex items-center justify-between rounded-xl border border-rose-500/40 bg-rose-950/30 p-4 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-rose-900/60 p-2 text-rose-400">
+              <AlertOctagon className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                  Active Simulated Anomaly Injected:
+                </span>
+                <span className="font-mono text-xs font-bold text-white">
+                  {activeAnomaly.type} ({activeAnomaly.severity})
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-rose-200/80">
+                Abnormal electrical behaviour is active on this unit. System anomaly detection and condition evaluator triggered.
+              </p>
+            </div>
           </div>
           <button
             onClick={() => clearAnomaly(selectedTxId)}
-            className="text-xs px-3 py-1 rounded bg-purple-800 hover:bg-purple-700 text-white font-semibold transition-colors"
+            className="rounded-lg border border-rose-500/50 bg-rose-900/40 px-3 py-1.5 text-xs font-semibold text-rose-200 transition-colors hover:bg-rose-800"
           >
             Clear Anomaly
           </button>
         </div>
       )}
 
-      {/* Primary Telemetry Gauges Grid */}
-      {telemetry && spec && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-          {/* Active Power kW */}
-          <MetricCard
-            title="Real Power (P)"
-            value={telemetry.active_power_kw.toFixed(1)}
-            unit="kW"
-            subtitle={`Apparent: ${formatApparentPower(telemetry.apparent_power_kva)}`}
-            icon={<Zap className="w-4 h-4 text-cyan-400" />}
-            variant="cyan"
-          />
-
-          {/* Load % */}
-          <MetricCard
-            title="Load Utilization"
-            value={telemetry.load_percentage.toFixed(1)}
-            unit="%"
-            subtitle={`Rated: ${spec.rated_capacity_kva.toLocaleString()} kVA`}
-            icon={<Gauge className="w-4 h-4 text-cyan-400" />}
-            variant={
-              telemetry.load_percentage >= 105
-                ? 'rose'
-                : telemetry.load_percentage >= 85
-                ? 'amber'
-                : 'cyan'
-            }
-          />
-
-          {/* Oil & Winding Temp */}
-          <MetricCard
-            title="Top Oil Temperature"
-            value={telemetry.oil_temp_c.toFixed(1)}
-            unit="°C"
-            subtitle={`Hotspot Winding: ${telemetry.winding_temp_c.toFixed(1)}°C`}
-            icon={<Thermometer className="w-4 h-4 text-amber-400" />}
-            variant={telemetry.oil_temp_c >= 80 ? 'rose' : 'amber'}
-          />
-
-          {/* Voltage & Current */}
-          <MetricCard
-            title="Terminal Voltage"
-            value={formatVoltage(telemetry.voltage_v)}
-            subtitle={`Phase Current: ${telemetry.current_a.toFixed(1)} A`}
-            icon={<Activity className="w-4 h-4 text-cyan-400" />}
-            variant="default"
-          />
-        </div>
-      )}
-
-      {/* Secondary Telemetry Technical Parameters */}
-      {telemetry && spec && (
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-            Engineering Parameters & Measurement Conventions
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Power Factor (cos φ)</span>
-              <span className="font-mono text-base font-bold text-slate-200 mt-1 block">
-                {telemetry.power_factor.toFixed(3)}
-              </span>
-              <span className="text-[10px] text-slate-500">Nominal 0.90 - 0.98</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Frequency (Hz)</span>
-              <span className="font-mono text-base font-bold text-slate-200 mt-1 block">
-                {telemetry.frequency_hz.toFixed(2)} Hz
-              </span>
-              <span className="text-[10px] text-slate-500">Grid Gov Swing ±0.05</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Reactive Power (Q)</span>
-              <span className="font-mono text-base font-bold text-slate-200 mt-1 block">
-                {telemetry.reactive_power_kvar.toFixed(1)} kVAR
-              </span>
-              <span className="text-[10px] text-slate-500">Inductive VAR</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Substation Ambient</span>
-              <span className="font-mono text-base font-bold text-slate-200 mt-1 block">
-                {telemetry.ambient_temp_c.toFixed(1)}°C
-              </span>
-              <span className="text-[10px] text-slate-500">Ambient Reference</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Cooling System</span>
-              <span className="font-mono text-base font-bold text-cyan-400 mt-1 block">
-                {spec.cooling_type}
-              </span>
-              <span className="text-[10px] text-slate-500">Commissioned {spec.installation_year}</span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-slate-500 uppercase tracking-wider block text-[10px]">Last Packet</span>
-              <span className="font-mono text-xs font-semibold text-slate-300 mt-1.5 block">
-                {formatDateTime(telemetry.timestamp)}
-              </span>
-              <span className="text-[10px] text-emerald-400">Synchronized</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* High Frequency Time-Series Charts */}
-      <div className="rounded-2xl bg-slate-900/80 p-5 border border-slate-800 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* Sensor Connectivity & Data Status Banner */}
+      {(isStale || isOffline) && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-950/30 p-3.5 text-xs text-amber-200">
+          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
           <div>
-            <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
-              <Activity className="w-4 h-4 text-cyan-400" />
-              Real-Time Dynamic Telemetry Curves ({selectedTxId})
-            </h3>
-            <p className="text-xs text-slate-400">
-              High-frequency multi-channel sensor traces across selected observation window
-            </p>
+            <strong>Sensor Telemetry Alert:</strong> Sensor connectivity status is{' '}
+            <span className="font-mono font-bold uppercase">{telemetry?.sensor_status}</span>.
+            {isOffline
+              ? ' Telemetry connection lost. Immediate on-site hardware inspection recommended.'
+              : ' Sensor telemetry is stale. Check edge gateway poll latency.'}
+          </div>
+        </div>
+      )}
+
+      {/* Transformer Specifications Strip */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-400 border border-cyan-500/20">
+              <Zap className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-mono font-extrabold text-slate-100">
+                  {spec?.name} ({spec?.id})
+                </h2>
+                <StatusBadge status={txDetail?.overall_condition || 'HEALTHY'} size="sm" />
+              </div>
+              <div className="text-xs text-slate-400">
+                Substation: <span className="font-semibold text-slate-200">{spec?.substation}</span> • Rated Capacity: <span className="font-semibold text-slate-200">{spec?.rated_kva} kVA</span> • Cooling: <span className="font-semibold text-slate-200">{spec?.cooling_type}</span> • Installed: <span className="font-semibold text-slate-200">{spec?.installation_year}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6 text-xs font-mono">
+            <div>
+              <div className="text-slate-500 uppercase text-[10px]">Rated Voltage</div>
+              <div className="font-bold text-cyan-400 text-sm">{spec?.rated_vrms.toFixed(1)} Vrms</div>
+            </div>
+            <div>
+              <div className="text-slate-500 uppercase text-[10px]">Rated Current</div>
+              <div className="font-bold text-cyan-400 text-sm">{spec?.rated_irms.toFixed(1)} Arms</div>
+            </div>
+            <div>
+              <div className="text-slate-500 uppercase text-[10px]">Sensor Status</div>
+              <div className="font-bold text-emerald-400 text-sm">{telemetry?.sensor_status}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Core Electrical Parameter Monitoring Grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* PARAMETER A: Output Voltage (Vrms) with Dual Independent Checks */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span>Output Voltage (Vrms)</span>
+              <Zap className="h-4 w-4 text-cyan-400" />
+            </div>
+
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-mono font-bold text-slate-100">
+                {formatVoltage(telemetry?.vrms ?? 0)}
+              </span>
+            </div>
+
+            <div className="mt-1 text-xs text-slate-400">
+              Rated: <span className="font-mono font-semibold text-slate-300">240.0 Vrms</span>
+            </div>
+
+            {/* Check 1: Voltage Deviation Check (-10% to +6%) */}
+            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Voltage Deviation:</span>
+                <span
+                  className={`font-mono font-bold ${
+                    isVDevNormal ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {formatPercentage(vDevPct, true)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Permissible (-10% to +6%):</span>
+                <span
+                  className={`font-semibold ${
+                    isVDevNormal ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {txDetail?.voltage_deviation_status}
+                </span>
+              </div>
+            </div>
+
+            {/* Check 2: Independent Statutory Supply Range Check (216V - 254V) */}
+            <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Statutory Supply Range:</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Permitted: 216 V – 254 V:</span>
+                <span
+                  className={`font-semibold uppercase ${
+                    isVSupplyNormal ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {txDetail?.supply_voltage_status}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 text-[10px] text-slate-500 font-mono">
+            Independent assessment: Rated deviation vs Statutory boundary.
           </div>
         </div>
 
-        {/* Load % and Temperature Chart */}
-        <div className="h-72 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="time" stroke="#475569" tick={{ fill: '#64748b', fontSize: 10 }} />
-              <YAxis
-                yAxisId="left"
-                stroke="#00f2fe"
-                tick={{ fill: '#00f2fe', fontSize: 10 }}
-                domain={[0, 'auto']}
-                unit="%"
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke="#f59e0b"
-                tick={{ fill: '#f59e0b', fontSize: 10 }}
-                unit="°C"
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#1e293b',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="load_pct"
-                stroke="#00f2fe"
-                strokeWidth={2}
-                dot={false}
-                name="Load Percentage (%)"
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="oil_temp"
-                stroke="#f59e0b"
-                strokeWidth={1.5}
-                dot={false}
-                name="Top Oil Temp (°C)"
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="winding_temp"
-                stroke="#ef4444"
-                strokeWidth={1.5}
-                strokeDasharray="3 3"
-                dot={false}
-                name="Hotspot Winding Temp (°C)"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* PARAMETER B: Output Current (Arms) with Configured Overcurrent Threshold */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span>Output Current (Arms)</span>
+              <Activity className="h-4 w-4 text-emerald-400" />
+            </div>
+
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-mono font-bold text-slate-100">
+                {formatCurrent(telemetry?.irms ?? 0)}
+              </span>
+            </div>
+
+            <div className="mt-1 text-xs text-slate-400">
+              Rated: <span className="font-mono font-semibold text-slate-300">{spec?.rated_irms.toFixed(1)} Arms</span>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Current Deviation:</span>
+                <span
+                  className={`font-mono font-bold ${
+                    isIDevNormal ? 'text-slate-200' : 'text-rose-400'
+                  }`}
+                >
+                  {formatPercentage(iDevPct, true)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Configured Limit (+10%):</span>
+                <span
+                  className={`font-semibold ${
+                    isIDevNormal ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {txDetail?.current_condition}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Loading Condition:</span>
+                <span className="font-semibold text-slate-300">{txDetail?.loading_condition}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">Load Utilization:</span>
+                <span className="font-mono font-bold text-cyan-400">
+                  {formatPercentage(txDetail?.loading_pct ?? 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 text-[10px] text-slate-500 font-mono">
+            Configured overcurrent tolerance: +10% rated current.
+          </div>
         </div>
 
-        {/* Voltage & Current Chart */}
-        <div className="h-56 w-full pt-4 border-t border-slate-800/80">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="time" stroke="#475569" tick={{ fill: '#64748b', fontSize: 10 }} />
-              <YAxis
-                yAxisId="v"
-                stroke="#38bdf8"
-                tick={{ fill: '#38bdf8', fontSize: 10 }}
-                domain={['dataMin - 10', 'dataMax + 10']}
-                unit=" V"
-              />
-              <YAxis
-                yAxisId="a"
-                orientation="right"
-                stroke="#a855f7"
-                tick={{ fill: '#a855f7', fontSize: 10 }}
-                unit=" A"
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#1e293b',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Line
-                yAxisId="v"
-                type="monotone"
-                dataKey="voltage_v"
-                stroke="#38bdf8"
-                strokeWidth={1.5}
-                dot={false}
-                name="Phase Voltage (V)"
-              />
-              <Line
-                yAxisId="a"
-                type="monotone"
-                dataKey="current_a"
-                stroke="#a855f7"
-                strokeWidth={1.5}
-                dot={false}
-                name="Phase Current (A)"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* PARAMETER C: Winding Hotspot Temperature (Sensor reading ONLY) */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span>Winding Hotspot Temp</span>
+              <Thermometer className="h-4 w-4 text-amber-400" />
+            </div>
+
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-mono font-bold text-slate-100">
+                {formatTemp(telemetry?.winding_hotspot_temperature ?? 0)}
+              </span>
+            </div>
+
+            <div className="mt-1 text-xs text-slate-400">
+              Thermal Status:{' '}
+              <span
+                className={`font-semibold uppercase ${
+                  (telemetry?.winding_hotspot_temperature ?? 0) > 95
+                    ? 'text-rose-400'
+                    : (telemetry?.winding_hotspot_temperature ?? 0) >= 80
+                    ? 'text-amber-400'
+                    : 'text-emerald-400'
+                }`}
+              >
+                {txDetail?.thermal_condition}
+              </span>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Normal Range:</span>
+                <span className="font-mono text-emerald-400">&lt; 80.0 °C</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Elevated Range:</span>
+                <span className="font-mono text-amber-400">80.0 – 95.0 °C</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Overheating Trigger:</span>
+                <span className="font-mono text-rose-400">&gt; 95.0 °C</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded bg-slate-950/80 p-2 text-[10px] text-slate-500 leading-tight">
+            <Info className="inline h-3 w-3 mr-1 text-slate-400" />
+            Top oil (60°C) and average winding (65°C) are design baselines and omitted from live telemetry per specification.
+          </div>
+        </div>
+
+        {/* PARAMETER D: Moisture Reading & Condition Recommendation */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span>Moisture Content</span>
+              <Droplets className="h-4 w-4 text-cyan-400" />
+            </div>
+
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-mono font-bold text-slate-100">
+                {formatMoisture(telemetry?.moisture ?? 0)}
+              </span>
+            </div>
+
+            <div className="mt-1 text-xs text-slate-400">
+              Dielectric Status:{' '}
+              <span
+                className={`font-semibold ${
+                  (telemetry?.moisture ?? 0) > 35.0 ? 'text-amber-400' : 'text-emerald-400'
+                }`}
+              >
+                {(telemetry?.moisture ?? 0) > 35.0 ? 'Elevated Moisture' : 'Acceptable'}
+              </span>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1.5">
+              <div className="text-xs text-slate-400">Operator Recommendation:</div>
+              <div className="rounded bg-slate-950 p-2 text-[11px] text-cyan-300 leading-normal font-medium">
+                {txDetail?.recommended_action || 'Maintain routine monitoring.'}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Inspection:</span>
+            {txDetail?.inspection_required ? (
+              <span className="rounded bg-amber-950 px-2 py-0.5 font-bold text-amber-300">
+                INSPECTION REQUIRED
+              </span>
+            ) : (
+              <span className="text-emerald-400 font-semibold">Routine Status</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Real-Time Telemetry Trend Curves (Recharts) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Voltage Vrms Curve */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Live Output Voltage Curve (Vrms)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Displaying measured Vrms against Rated (240V) and Statutory boundaries (216V–254V).
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+              <span className="text-cyan-400">● Measured</span>
+              <span className="text-slate-500">--- Rated 240V</span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis domain={[200, 270]} stroke="#475569" fontSize={10} tickLine={false} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const v = Number(payload[0].value);
+                    const dev = (((v - 240) / 240) * 100).toFixed(2);
+                    return (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs shadow-xl font-mono">
+                        <p className="text-slate-400 mb-1">{label}</p>
+                        <p className="font-bold text-cyan-400">{v.toFixed(2)} Vrms</p>
+                        <p className="text-[11px] text-slate-300">Deviation: {dev}%</p>
+                      </div>
+                    );
+                  }}
+                />
+                <ReferenceLine y={240} stroke="#94a3b8" strokeDasharray="3 3" label={{ value: 'Rated 240V', fill: '#94a3b8', fontSize: 10 }} />
+                <ReferenceLine y={254} stroke="#ef4444" strokeDasharray="2 2" label={{ value: 'Max 254V', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={216} stroke="#f59e0b" strokeDasharray="2 2" label={{ value: 'Min 216V', fill: '#f59e0b', fontSize: 10 }} />
+                <Line
+                  type="monotone"
+                  dataKey="vrms"
+                  stroke="#22d3ee"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Current Arms Curve */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Live Output Current Curve (Arms)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Displaying measured Arms against Rated capacity ({spec?.rated_irms.toFixed(1)} Arms) & +10% overcurrent threshold.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+              <span className="text-emerald-400">● Measured</span>
+              <span className="text-slate-500">--- Rated</span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const i = Number(payload[0].value);
+                    const rated = spec?.rated_irms || 104.2;
+                    const dev = (((i - rated) / rated) * 100).toFixed(2);
+                    return (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs shadow-xl font-mono">
+                        <p className="text-slate-400 mb-1">{label}</p>
+                        <p className="font-bold text-emerald-400">{i.toFixed(2)} Arms</p>
+                        <p className="text-[11px] text-slate-300">Deviation: {dev}%</p>
+                      </div>
+                    );
+                  }}
+                />
+                {spec?.rated_irms && (
+                  <ReferenceLine
+                    y={spec.rated_irms}
+                    stroke="#94a3b8"
+                    strokeDasharray="3 3"
+                    label={{ value: `Rated ${spec.rated_irms.toFixed(0)}A`, fill: '#94a3b8', fontSize: 10 }}
+                  />
+                )}
+                {spec?.rated_irms && (
+                  <ReferenceLine
+                    y={spec.rated_irms * 1.1}
+                    stroke="#ef4444"
+                    strokeDasharray="2 2"
+                    label={{ value: `Limit +10% (${(spec.rated_irms * 1.1).toFixed(0)}A)`, fill: '#ef4444', fontSize: 10 }}
+                  />
+                )}
+                <Line
+                  type="monotone"
+                  dataKey="irms"
+                  stroke="#34d399"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Winding Hotspot Temperature & Moisture Curve */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Winding Hotspot Temperature & Moisture Dynamics
+              </h3>
+              <p className="text-xs text-slate-400">
+                Direct sensor temperature measurement with warning threshold (80°C) and overheating alarm (95°C).
+              </p>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] font-mono">
+              <span className="flex items-center gap-1 text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-400" /> Hotspot (°C)
+              </span>
+              <span className="flex items-center gap-1 text-cyan-400">
+                <span className="h-2 w-2 rounded-full bg-cyan-400" /> Moisture (% RH)
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis yAxisId="temp" domain={[20, 120]} stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis yAxisId="moist" orientation="right" domain={[0, 100]} stroke="#475569" fontSize={10} tickLine={false} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    return (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs shadow-xl font-mono">
+                        <p className="text-slate-400 mb-1">{label}</p>
+                        {payload.map((item: any) => (
+                          <div key={item.dataKey} className="flex items-center justify-between gap-4">
+                            <span style={{ color: item.color }}>{item.name}:</span>
+                            <span className="font-bold text-slate-200">
+                              {Number(item.value).toFixed(1)} {item.dataKey === 'winding_hotspot_temperature' ? '°C' : '% RH'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+                <ReferenceLine yAxisId="temp" y={80} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Elevated (80°C)', fill: '#f59e0b', fontSize: 10 }} />
+                <ReferenceLine yAxisId="temp" y={95} stroke="#ef4444" strokeDasharray="2 2" label={{ value: 'Overheating (95°C)', fill: '#ef4444', fontSize: 10 }} />
+                <Line
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey="winding_hotspot_temperature"
+                  name="Hotspot Temp"
+                  stroke="#fbbf24"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="moist"
+                  type="monotone"
+                  dataKey="moisture"
+                  name="Moisture"
+                  stroke="#22d3ee"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

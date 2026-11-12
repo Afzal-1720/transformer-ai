@@ -1,18 +1,18 @@
 import threading
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
-from app.models.transformer import TransformerSpec, TelemetryReading, TransformerDetail, HealthStatus, RiskLevel
+from app.models.transformer import TransformerSpec, TelemetryReading
 from app.models.alert import Alert, AlertStatus, AlertSeverity
-from app.models.maintenance import MaintenanceTask, TaskStatus, TaskPriority, AssetHealthRecord, ConditionCategory
+from app.models.inspection import InspectionRecord, InspectionStatus, InspectionPriority
 
 class InMemoryStorage:
     def __init__(self):
         self._lock = threading.Lock()
         self.transformers: Dict[str, TransformerSpec] = {}
         self.latest_telemetry: Dict[str, TelemetryReading] = {}
-        self.telemetry_history: Dict[str, List[TelemetryReading]] = {}  # Max 1000 items per transformer
+        self.telemetry_history: Dict[str, List[TelemetryReading]] = {}  # Max 600 items per transformer
         self.alerts: Dict[str, Alert] = {}
-        self.maintenance_tasks: Dict[str, MaintenanceTask] = {}
+        self.inspections: Dict[str, InspectionRecord] = {}
         self.sim_speed_multiplier: float = 1.0
         self.sim_paused: bool = False
         self.injected_anomalies: Dict[str, dict] = {} # transformer_id -> anomaly config
@@ -39,7 +39,6 @@ class InMemoryStorage:
             history = self.telemetry_history.setdefault(telemetry.transformer_id, [])
             history.append(telemetry)
             if len(history) > max_history:
-                # Keep most recent
                 self.telemetry_history[telemetry.transformer_id] = history[-max_history:]
 
     def get_latest_telemetry(self, transformer_id: str) -> Optional[TelemetryReading]:
@@ -55,12 +54,17 @@ class InMemoryStorage:
             history = self.telemetry_history.get(transformer_id, [])
             return history[-limit:] if limit > 0 else history
 
-    # Alerts
+    # Alerts & Anomaly Notifications
     def add_alert(self, alert: Alert):
         with self._lock:
             self.alerts[alert.id] = alert
 
-    def get_alerts(self, status: Optional[AlertStatus] = None, severity: Optional[AlertSeverity] = None, transformer_id: Optional[str] = None) -> List[Alert]:
+    def get_alerts(
+        self,
+        status: Optional[AlertStatus] = None,
+        severity: Optional[AlertSeverity] = None,
+        transformer_id: Optional[str] = None
+    ) -> List[Alert]:
         with self._lock:
             results = list(self.alerts.values())
             if status:
@@ -69,7 +73,6 @@ class InMemoryStorage:
                 results = [a for a in results if a.severity == severity]
             if transformer_id:
                 results = [a for a in results if a.transformer_id == transformer_id]
-            # Order newest first
             return sorted(results, key=lambda a: a.created_at, reverse=True)
 
     def get_active_alerts_count(self, transformer_id: Optional[str] = None) -> int:
@@ -97,27 +100,40 @@ class InMemoryStorage:
                 return alert
             return None
 
-    # Maintenance Tasks
-    def add_maintenance_task(self, task: MaintenanceTask):
+    # Inspections & Maintenance
+    def add_inspection(self, record: InspectionRecord):
         with self._lock:
-            self.maintenance_tasks[task.id] = task
+            self.inspections[record.id] = record
 
-    def get_maintenance_tasks(self, transformer_id: Optional[str] = None) -> List[MaintenanceTask]:
+    def get_inspections(
+        self,
+        transformer_id: Optional[str] = None,
+        status: Optional[InspectionStatus] = None
+    ) -> List[InspectionRecord]:
         with self._lock:
-            tasks = list(self.maintenance_tasks.values())
+            records = list(self.inspections.values())
             if transformer_id:
-                tasks = [t for t in tasks if t.transformer_id == transformer_id]
-            return sorted(tasks, key=lambda t: t.created_at, reverse=True)
+                records = [r for r in records if r.transformer_id == transformer_id]
+            if status:
+                records = [r for r in records if r.status == status]
+            return sorted(records, key=lambda r: r.detected_at, reverse=True)
 
-    def update_maintenance_task(self, task_id: str, updates: dict) -> Optional[MaintenanceTask]:
+    def update_inspection(self, record_id: str, updates: dict) -> Optional[InspectionRecord]:
         with self._lock:
-            task = self.maintenance_tasks.get(task_id)
-            if not task:
+            record = self.inspections.get(record_id)
+            if not record:
                 return None
             for key, val in updates.items():
-                if val is not None and hasattr(task, key):
-                    setattr(task, key, val)
-            return task
+                if val is not None and hasattr(record, key):
+                    setattr(record, key, val)
+            return record
+
+    def get_pending_inspections_count(self, transformer_id: Optional[str] = None) -> int:
+        with self._lock:
+            pending = [r for r in self.inspections.values() if r.status != InspectionStatus.COMPLETED]
+            if transformer_id:
+                pending = [r for r in pending if r.transformer_id == transformer_id]
+            return len(pending)
 
     # Simulation Controls
     def set_simulation_speed(self, multiplier: float):
@@ -128,7 +144,7 @@ class InMemoryStorage:
         with self._lock:
             self.sim_paused = paused
 
-    def inject_anomaly(self, transformer_id: str, anomaly_type: str, severity: str = "HIGH", duration_sec: int = 60):
+    def inject_anomaly(self, transformer_id: str, anomaly_type: str, severity: str = "HIGH", duration_sec: int = 120):
         with self._lock:
             self.injected_anomalies[transformer_id] = {
                 "type": anomaly_type,
@@ -143,9 +159,11 @@ class InMemoryStorage:
 
     def get_active_anomalies(self) -> Dict[str, dict]:
         with self._lock:
-            # Clean expired anomalies
             now = datetime.now(timezone.utc).timestamp()
-            expired = [tx_id for tx_id, conf in self.injected_anomalies.items() if (now - conf["started_at"]) > conf["duration_sec"]]
+            expired = [
+                tx_id for tx_id, conf in self.injected_anomalies.items()
+                if (now - conf["started_at"]) > conf["duration_sec"]
+            ]
             for tx_id in expired:
                 del self.injected_anomalies[tx_id]
             return dict(self.injected_anomalies)

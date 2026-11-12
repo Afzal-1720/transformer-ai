@@ -5,9 +5,8 @@ import { SimulationProvider } from './context/SimulationContext';
 import { Layout } from './components/layout/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { LiveMonitoringPage } from './pages/LiveMonitoringPage';
-import { AIIntelligencePage } from './pages/AIIntelligencePage';
-import { LoadBalancingPage } from './pages/LoadBalancingPage';
-import { MaintenancePage } from './pages/MaintenancePage';
+import { AnomalyConditionPage } from './pages/AnomalyConditionPage';
+import { InspectionPage } from './pages/InspectionPage';
 
 export const App: React.FC = () => {
   return (
@@ -18,9 +17,8 @@ export const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/monitoring" element={<LiveMonitoringPage />} />
-              <Route path="/intelligence" element={<AIIntelligencePage />} />
-              <Route path="/load-balancing" element={<LoadBalancingPage />} />
-              <Route path="/maintenance" element={<MaintenancePage />} />
+              <Route path="/anomalies" element={<AnomalyConditionPage />} />
+              <Route path="/maintenance" element={<InspectionPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

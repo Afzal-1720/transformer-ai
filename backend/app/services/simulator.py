@@ -2,145 +2,98 @@ import math
 import random
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from app.models.transformer import (
-    TransformerSpec, TelemetryReading, CommunicationStatus, HealthStatus, RiskLevel
-)
+from app.config import settings
+from app.models.transformer import TransformerSpec, TelemetryReading, SensorStatus
 from app.models.alert import Alert, AlertSeverity, AlertCategory, AlertStatus
-from app.models.maintenance import MaintenanceTask, TaskPriority, TaskStatus
+from app.models.inspection import InspectionRecord, InspectionStatus, InspectionPriority
 from app.services.storage import storage
+from app.services.condition_evaluator import condition_evaluator
 
-# Canonical transformer fleet
+# =========================================================================
+# CANONICAL TRANSFORMER FLEET CONFIGURATION
+# All units rated at standard low-voltage distribution nominal 240.0 Vrms.
+# =========================================================================
 INITIAL_TRANSFORMERS: List[TransformerSpec] = [
     TransformerSpec(
-        id="TX-101",
-        name="Substation North — Heavy Industrial T1",
-        zone="Zone North (Industrial)",
-        rated_capacity_kva=2500.0,
-        primary_voltage_kv=33.0,
-        secondary_voltage_kv=11.0,
+        id="TX-001",
+        name="Substation North — Feeder Alpha Unit 1",
+        substation="North Industrial Zone",
+        rated_vrms=240.0,
+        rated_irms=100.0,
+        rated_kva=24.0,
+        cooling_type="ONAN",
+        installation_year=2018
+    ),
+    TransformerSpec(
+        id="TX-002",
+        name="Substation North — Feeder Alpha Unit 2",
+        substation="North Industrial Zone",
+        rated_vrms=240.0,
+        rated_irms=125.0,
+        rated_kva=30.0,
+        cooling_type="ONAN",
+        installation_year=2020
+    ),
+    TransformerSpec(
+        id="TX-003",
+        name="Substation East — Commercial Plaza Unit 1",
+        substation="East Commercial District",
+        rated_vrms=240.0,
+        rated_irms=150.0,
+        rated_kva=36.0,
+        cooling_type="ONAN",
+        installation_year=2019
+    ),
+    TransformerSpec(
+        id="TX-004",
+        name="Substation East — Retail Centre Unit 2",
+        substation="East Commercial District",
+        rated_vrms=240.0,
+        rated_irms=80.0,
+        rated_kva=19.2,
+        cooling_type="ONAN",
+        installation_year=2021
+    ),
+    TransformerSpec(
+        id="TX-005",
+        name="Substation South — Metro Residential Unit 1",
+        substation="South Residential Sector",
+        rated_vrms=240.0,
+        rated_irms=100.0,
+        rated_kva=24.0,
+        cooling_type="ONAN",
+        installation_year=2017
+    ),
+    TransformerSpec(
+        id="TX-006",
+        name="Substation South — Metro Residential Unit 2",
+        substation="South Residential Sector",
+        rated_vrms=240.0,
+        rated_irms=100.0,
+        rated_kva=24.0,
+        cooling_type="ONAN",
+        installation_year=2016
+    ),
+    TransformerSpec(
+        id="TX-007",
+        name="Substation West — Technology Park Unit 1",
+        substation="West High-Tech Corridor",
+        rated_vrms=240.0,
+        rated_irms=200.0,
+        rated_kva=48.0,
         cooling_type="ONAF",
-        installation_year=2017,
-        latitude=37.7833,
-        longitude=-122.4167,
-        connected_substations=["TX-102", "TX-501"]
+        installation_year=2022
     ),
     TransformerSpec(
-        id="TX-102",
-        name="Substation North — Auxiliary Feeder T2",
-        zone="Zone North (Industrial)",
-        rated_capacity_kva=1500.0,
-        primary_voltage_kv=33.0,
-        secondary_voltage_kv=11.0,
-        cooling_type="ONAN",
-        installation_year=2019,
-        latitude=37.7850,
-        longitude=-122.4120,
-        connected_substations=["TX-101", "TX-501"]
-    ),
-    TransformerSpec(
-        id="TX-201",
-        name="Substation East — Commercial Core T1",
-        zone="Zone East (Commercial)",
-        rated_capacity_kva=2000.0,
-        primary_voltage_kv=11.0,
-        secondary_voltage_kv=0.415,
-        cooling_type="ONAN",
-        installation_year=2018,
-        latitude=37.7790,
-        longitude=-122.3950,
-        connected_substations=["TX-202", "TX-501"]
-    ),
-    TransformerSpec(
-        id="TX-202",
-        name="Substation East — Retail Plaza T2",
-        zone="Zone East (Commercial)",
-        rated_capacity_kva=1000.0,
-        primary_voltage_kv=11.0,
-        secondary_voltage_kv=0.415,
-        cooling_type="ONAN",
-        installation_year=2021,
-        latitude=37.7760,
-        longitude=-122.3910,
-        connected_substations=["TX-201"]
-    ),
-    TransformerSpec(
-        id="TX-301",
-        name="Substation South — Metro Residential T1",
-        zone="Zone South (Residential)",
-        rated_capacity_kva=1250.0,
-        primary_voltage_kv=11.0,
-        secondary_voltage_kv=0.415,
-        cooling_type="ONAN",
-        installation_year=2016,
-        latitude=37.7550,
-        longitude=-122.4200,
-        connected_substations=["TX-302"]
-    ),
-    TransformerSpec(
-        id="TX-302",
-        name="Substation South — Metro Residential T2",
-        zone="Zone South (Residential)",
-        rated_capacity_kva=1250.0,
-        primary_voltage_kv=11.0,
-        secondary_voltage_kv=0.415,
-        cooling_type="ONAN",
-        installation_year=2015,
-        latitude=37.7510,
-        longitude=-122.4230,
-        connected_substations=["TX-301", "TX-303"]
-    ),
-    TransformerSpec(
-        id="TX-303",
-        name="Substation South — Highland Estates T3",
-        zone="Zone South (Residential)",
-        rated_capacity_kva=800.0,
-        primary_voltage_kv=11.0,
-        secondary_voltage_kv=0.415,
-        cooling_type="ONAN",
-        installation_year=2020,
-        latitude=37.7460,
-        longitude=-122.4350,
-        connected_substations=["TX-302"]
-    ),
-    TransformerSpec(
-        id="TX-401",
-        name="Substation West — Silicon Data Center T1",
-        zone="Zone West (Technology)",
-        rated_capacity_kva=3000.0,
-        primary_voltage_kv=33.0,
-        secondary_voltage_kv=11.0,
-        cooling_type="OFAF",
-        installation_year=2022,
-        latitude=37.7690,
-        longitude=-122.4490,
-        connected_substations=["TX-402", "TX-501"]
-    ),
-    TransformerSpec(
-        id="TX-402",
-        name="Substation West — Research Campus T2",
-        zone="Zone West (Technology)",
-        rated_capacity_kva=2500.0,
-        primary_voltage_kv=33.0,
-        secondary_voltage_kv=11.0,
+        id="TX-008",
+        name="Substation West — Data Center Unit 2",
+        substation="West High-Tech Corridor",
+        rated_vrms=240.0,
+        rated_irms=175.0,
+        rated_kva=42.0,
         cooling_type="ONAF",
-        installation_year=2021,
-        latitude=37.7720,
-        longitude=-122.4450,
-        connected_substations=["TX-401"]
+        installation_year=2023
     ),
-    TransformerSpec(
-        id="TX-501",
-        name="Central Grid Inter-tie Substation",
-        zone="Zone Central (Transmission)",
-        rated_capacity_kva=5000.0,
-        primary_voltage_kv=132.0,
-        secondary_voltage_kv=33.0,
-        cooling_type="OFAF",
-        installation_year=2014,
-        latitude=37.7700,
-        longitude=-122.4180,
-        connected_substations=["TX-101", "TX-201", "TX-401"]
-    )
 ]
 
 class TelemetrySimulator:
@@ -148,208 +101,188 @@ class TelemetrySimulator:
         self.temperature_state: Dict[str, float] = {}
         self.consecutive_abnormal_ticks: Dict[str, int] = {}
         self.last_valid_telemetry: Dict[str, TelemetryReading] = {}
-        self.stale_ticks_counter: Dict[str, int] = {}
+        self.ongoing_alert_categories: Dict[str, set] = {}
 
     def initialize_system(self):
-        """Populate fleet, generate 48-hour historical telemetry, and register initial tasks."""
-        # 1. Register transformers
+        """Populate fleet, generate 48 hours of historical readings, and seed initial inspection records."""
+        # 1. Register fleet
         for spec in INITIAL_TRANSFORMERS:
             storage.set_transformer_spec(spec)
-            self.temperature_state[spec.id] = 48.0  # nominal initial oil temp
+            self.temperature_state[spec.id] = 68.0
+            self.ongoing_alert_categories[spec.id] = set()
 
-        # 2. Generate 48 hours of historical readings (hourly)
+        # 2. Generate 48 hours of baseline readings (hourly steps)
         now = datetime.now(timezone.utc)
         start_time = now - timedelta(hours=48)
-        
         current_time = start_time
+
         while current_time < now:
             for spec in INITIAL_TRANSFORMERS:
                 reading = self._generate_physics_reading(spec, current_time, allow_anomaly=False)
-                storage.record_telemetry(reading, max_history=600)
+                storage.record_telemetry(reading, max_history=500)
             current_time += timedelta(hours=1)
 
         # 3. Generate latest current reading
         for spec in INITIAL_TRANSFORMERS:
             reading = self._generate_physics_reading(spec, now, allow_anomaly=True)
-            storage.record_telemetry(reading, max_history=600)
+            storage.record_telemetry(reading, max_history=500)
             self.last_valid_telemetry[spec.id] = reading
 
-        # 4. Create sample initial maintenance work orders
-        sample_tasks = [
-            MaintenanceTask(
-                id="MNT-2026-001",
-                transformer_id="TX-101",
-                title="DGA Dissolved Gas Analysis & Oil Dielectric Testing",
-                description="Routine semi-annual oil dielectric breakdown testing and dissolved gas chromatography.",
-                priority=TaskPriority.P2_HIGH,
-                status=TaskStatus.IN_PROGRESS,
-                assigned_technician="Sarah Chen (High-Voltage Lead)",
-                scheduled_date=(now + timedelta(days=2)).strftime("%Y-%m-%d"),
-                created_at=now - timedelta(days=5),
-                notes="Previous DGA showed minor trace acetylene (1.2 ppm), stable."
+        # 4. Seed sample inspection history
+        sample_inspections = [
+            InspectionRecord(
+                id="INSP-2026-001",
+                transformer_id="TX-001",
+                transformer_name="Substation North — Feeder Alpha Unit 1",
+                reason="Routine visual and terminal connection inspection",
+                priority=InspectionPriority.ROUTINE,
+                status=InspectionStatus.COMPLETED,
+                detected_at=now - timedelta(days=12),
+                completed_at=now - timedelta(days=11),
+                recommended_action="Inspect bushing terminals and check dielectric moisture",
+                assigned_technician="Marcus Vance (Field Lead)",
+                notes="Terminals torqued to specification. Dielectric moisture within 14% RH.",
+                is_mock_data=True
             ),
-            MaintenanceTask(
-                id="MNT-2026-002",
-                transformer_id="TX-501",
-                title="Cooling Radiator Fan Bank #2 Inspection",
-                description="Check thermal vibration, bearings, and automatic thermostat control contactors.",
-                priority=TaskPriority.P3_MEDIUM,
-                status=TaskStatus.OPEN,
-                assigned_technician="Marcus Vance",
-                scheduled_date=(now + timedelta(days=7)).strftime("%Y-%m-%d"),
-                created_at=now - timedelta(days=2),
-                notes="Visual inspection indicated slight oil dust accumulation on upper fins."
-            ),
-            MaintenanceTask(
-                id="MNT-2026-003",
-                transformer_id="TX-302",
-                title="Bushing Infrared Thermography & Tightening",
-                description="Inspect secondary 0.415 kV terminal connections under peak evening loading.",
-                priority=TaskPriority.P4_ROUTINE,
-                status=TaskStatus.COMPLETED,
-                assigned_technician="David Kim",
-                scheduled_date=(now - timedelta(days=10)).strftime("%Y-%m-%d"),
-                completed_date=(now - timedelta(days=9)).strftime("%Y-%m-%d"),
-                created_at=now - timedelta(days=15),
-                notes="Terminal delta-T within 2.1°C of ambient. Connection torqued to 85 Nm."
+            InspectionRecord(
+                id="INSP-2026-002",
+                transformer_id="TX-003",
+                transformer_name="Substation East — Commercial Plaza Unit 1",
+                reason="Periodic load profile verification under commercial midday peak",
+                priority=InspectionPriority.MEDIUM,
+                status=InspectionStatus.ACKNOWLEDGED,
+                detected_at=now - timedelta(days=3),
+                acknowledged_at=now - timedelta(days=2),
+                recommended_action="Inspect connected load and verify secondary cable thermal margins",
+                assigned_technician="Elena Rostova",
+                notes="Assigned to Field Unit 2. Scheduled for onsite thermography.",
+                is_mock_data=True
             )
         ]
-        for t in sample_tasks:
-            storage.add_maintenance_task(t)
+        for insp in sample_inspections:
+            storage.add_inspection(insp)
 
-    def _get_diurnal_load_factor(self, zone: str, hour: float) -> float:
-        """Realistic load multiplier depending on zone typology and hour (0-24)."""
-        if "Industrial" in zone:
-            # 2-shift industrial plateau: high 07:00 - 22:00, moderate overnight
-            base = 0.55 + 0.32 * (1.0 / (1.0 + math.exp(-0.8 * (hour - 7)))) - 0.25 * (1.0 / (1.0 + math.exp(-0.8 * (hour - 21))))
-            return max(0.45, min(base, 0.95))
-        elif "Commercial" in zone:
+    def _get_diurnal_load_factor(self, substation: str, hour: float) -> float:
+        """Realistic load curve tailored to distribution zone typology."""
+        if "Industrial" in substation:
+            # Daytime plateau 07:00 - 20:00 (65% to 85%)
+            return 0.58 + 0.24 * (1.0 / (1.0 + math.exp(-0.8 * (hour - 7)))) - 0.18 * (1.0 / (1.0 + math.exp(-0.8 * (hour - 20))))
+        elif "Commercial" in substation:
             # Business hours peak 09:00 - 18:00
             peak = math.exp(-((hour - 14) ** 2) / 24.0)
-            return 0.35 + 0.55 * peak
-        elif "Residential" in zone:
+            return 0.42 + 0.45 * peak
+        elif "Residential" in substation:
             # Dual peak: morning (07:30) and evening (19:30)
-            morning = 0.35 * math.exp(-((hour - 7.5) ** 2) / 4.0)
-            evening = 0.55 * math.exp(-((hour - 19.5) ** 2) / 8.0)
-            return 0.30 + morning + evening
-        elif "Technology" in zone:
-            # High continuous baseline (servers/data centers) with minor daytime variation
-            return 0.72 + 0.16 * math.sin((hour - 8) * math.pi / 12.0)
+            m = 0.28 * math.exp(-((hour - 7.5) ** 2) / 4.0)
+            e = 0.42 * math.exp(-((hour - 19.5) ** 2) / 8.0)
+            return 0.35 + m + e
         else:
-            # Central transmission inter-tie: aggregate weighted curve
-            return 0.60 + 0.25 * math.sin((hour - 10) * math.pi / 12.0)
+            # Tech / Data center steady load
+            return 0.70 + 0.12 * math.sin((hour - 8) * math.pi / 12.0)
 
-    def _generate_physics_reading(self, spec: TransformerSpec, timestamp: datetime, allow_anomaly: bool = True) -> TelemetryReading:
+    # =========================================================================
+    # FUTURE HARDWARE INTEGRATION:
+    # Replace the mock telemetry provider below with the actual
+    # hardware/IoT gateway API endpoint.
+    # Fetch real Vrms, Arms, winding hotspot temperature and moisture
+    # readings from the connected transformer sensors.
+    # =========================================================================
+    def _generate_physics_reading(
+        self, spec: TransformerSpec, timestamp: datetime, allow_anomaly: bool = True
+    ) -> TelemetryReading:
         hour = timestamp.hour + timestamp.minute / 60.0 + timestamp.second / 3600.0
-        
-        # Ambient temperature diurnal model: min 16°C at 05:00, max 32°C at 15:00
-        ambient_temp = 22.0 + 8.0 * math.sin((hour - 9) * math.pi / 12.0)
-        
-        # Base load factor for this transformer type
-        zone_factor = self._get_diurnal_load_factor(spec.zone, hour)
-        
-        # Unit-specific offset so identical zones have natural variance
-        unit_hash_factor = (hash(spec.id) % 15 - 7) / 100.0  # -0.07 to +0.07
-        random_noise = random.uniform(-0.025, 0.025)
-        load_ratio = max(0.20, zone_factor + unit_hash_factor + random_noise)
 
-        # Check for active injected anomaly
+        # Ambient baseline (min 18°C, max 32°C)
+        ambient_temp = 22.0 + 8.0 * math.sin((hour - 9) * math.pi / 12.0)
+
+        # Baseline loading factor
+        base_factor = self._get_diurnal_load_factor(spec.substation, hour)
+        unit_offset = ((hash(spec.id) % 11) - 5) / 100.0  # -0.05 to +0.05
+        noise = random.uniform(-0.02, 0.02)
+        load_ratio = max(0.25, min(1.10, base_factor + unit_offset + noise))
+
+        # Check for demo anomaly injection
         active_anomalies = storage.get_active_anomalies()
         anomaly_info = active_anomalies.get(spec.id) if allow_anomaly else None
-        
-        comm_status = CommunicationStatus.ONLINE
-        forced_voltage_sag = 1.0
+
+        forced_voltage = None
+        forced_current = None
         forced_temp_rise = 0.0
-        
+        forced_moisture = None
+        sensor_status = "ONLINE"
+
         if anomaly_info:
-            atype = anomaly_info.get("type")
-            if atype == "overload":
-                # Push load to 118% - 130%
-                load_ratio = random.uniform(1.18, 1.32)
-            elif atype == "high_temp":
-                forced_temp_rise = random.uniform(28.0, 42.0)
-            elif atype == "voltage_sag":
-                forced_voltage_sag = random.uniform(0.82, 0.88)
+            atype = anomaly_info.get("type", "").lower()
+            if atype == "over_voltage":
+                # Push voltage above statutory 254V & > +6%
+                forced_voltage = random.uniform(256.5, 264.0)
+            elif atype == "under_voltage":
+                # Push voltage below statutory 216V & < -10%
+                forced_voltage = random.uniform(204.0, 212.0)
+            elif atype == "over_current":
+                # Push current well above rated (+25% to +45% overload)
+                forced_current = spec.rated_irms * random.uniform(1.22, 1.45)
+            elif atype == "overheating":
+                # Winding hotspot temperature rises into overheating zone (>98°C)
+                forced_temp_rise = random.uniform(32.0, 44.0)
+            elif atype == "sudden_load_variation":
+                # Instantaneous current step increase of +38%
+                forced_current = spec.rated_irms * random.uniform(1.15, 1.30)
             elif atype == "sensor_freeze":
-                comm_status = CommunicationStatus.STALE
+                sensor_status = "STALE"
                 if spec.id in self.last_valid_telemetry:
-                    # Return exact duplicate frozen reading
                     frozen = self.last_valid_telemetry[spec.id].model_copy()
                     frozen.timestamp = timestamp
-                    frozen.communication_status = CommunicationStatus.STALE
+                    frozen.sensor_status = "STALE"
                     return frozen
             elif atype == "offline":
-                comm_status = CommunicationStatus.OFFLINE
+                sensor_status = "OFFLINE"
 
-        # Apparent power S in kVA
-        apparent_power_kva = round(spec.rated_capacity_kva * load_ratio, 1)
-        load_percentage = round((apparent_power_kva / spec.rated_capacity_kva) * 100.0, 1)
-
-        # Power factor (nominal 0.93 - 0.97 for industrial/commercial, 0.90 - 0.95 residential)
-        pf_base = 0.95 if "Technology" in spec.zone else 0.93
-        power_factor = round(min(0.99, max(0.82, pf_base + random.uniform(-0.02, 0.02))), 3)
-
-        # Active power P (kW) and Reactive power Q (kVAR)
-        active_power_kw = round(apparent_power_kva * power_factor, 1)
-        q_squared = max(0.0, apparent_power_kva**2 - active_power_kw**2)
-        reactive_power_kvar = round(math.sqrt(q_squared), 1)
-
-        # Secondary voltage V
-        nominal_v_kv = spec.secondary_voltage_kv
-        # High load causes small feeder voltage drop (ohmic drop)
-        voltage_drop_pct = (load_ratio * 0.035) * forced_voltage_sag
-        actual_v_kv = round(nominal_v_kv * (1.0 - voltage_drop_pct + random.uniform(-0.005, 0.005)) * forced_voltage_sag, 3)
-        actual_v_v = round(actual_v_kv * 1000.0, 1)
-
-        # Current I = S / (sqrt(3) * V_LL)
-        # S in kVA -> S*1000 VA, V in V
-        if actual_v_v > 0:
-            current_a = round((apparent_power_kva * 1000.0) / (math.sqrt(3) * actual_v_v), 1)
+        # 1. Measured Output Voltage (Vrms)
+        # Nominal: 240.0 V with small feeder ohmic drop (~1.5% to 3.5%)
+        if forced_voltage is not None:
+            measured_vrms = round(forced_voltage, 1)
         else:
-            current_a = 0.0
+            voltage_drop = load_ratio * 3.5
+            nominal_v = spec.rated_vrms
+            measured_vrms = round(nominal_v - voltage_drop + random.uniform(-0.8, 0.8), 1)
 
-        # Frequency (nominally 50.0 Hz, standard grid governor swing ±0.06 Hz)
-        frequency_hz = round(50.0 + random.uniform(-0.04, 0.04), 2)
+        # 2. Measured Output Current (Arms)
+        if forced_current is not None:
+            measured_irms = round(forced_current, 1)
+        else:
+            measured_irms = round(spec.rated_irms * load_ratio, 1)
 
-        # Thermal physics model:
-        # Steady state temperature rise delta_T = delta_T_rated * (load_ratio)^1.6
-        # delta_T_rated ~ 50°C for standard distribution transformers
-        delta_t_rated = 48.0
-        delta_t_steady = delta_t_rated * (load_ratio ** 1.6)
-        steady_oil_temp = ambient_temp + delta_t_steady + forced_temp_rise
+        # 3. Winding Hotspot Temperature (°C)
+        # Thermal model: Hotspot temperature = Ambient + steady-state rise from load
+        # In a standard distribution transformer, steady rise ~ 45°C * (load_ratio)^1.8
+        steady_hotspot = ambient_temp + 42.0 * (load_ratio ** 1.8) + forced_temp_rise
+        prev_temp = self.temperature_state.get(spec.id, steady_hotspot)
+        # Thermal inertia exponential smoothing (alpha ~ 0.15 per cycle)
+        hotspot_temp = round(prev_temp + 0.15 * (steady_hotspot - prev_temp), 1)
+        self.temperature_state[spec.id] = hotspot_temp
 
-        # Thermal inertia: smooth transition toward steady state
-        prev_temp = self.temperature_state.get(spec.id, steady_oil_temp)
-        # alpha time constant factor (~0.12 per tick step)
-        oil_temp = round(prev_temp + 0.12 * (steady_oil_temp - prev_temp), 1)
-        self.temperature_state[spec.id] = oil_temp
+        # 4. Moisture Reading (% RH)
+        if forced_moisture is not None:
+            moisture_val = round(forced_moisture, 1)
+        else:
+            base_moisture = 14.0 + (hash(spec.id) % 8)
+            moisture_val = round(base_moisture + random.uniform(-0.5, 0.5), 1)
 
-        # Winding hotspot temperature = oil temp + winding gradient
-        winding_gradient = 14.0 * (load_ratio ** 1.8)
-        winding_temp = round(oil_temp + winding_gradient, 1)
-
-        reading = TelemetryReading(
-            timestamp=timestamp,
+        # IMPORTANT: Top oil temperature and average winding temperature are NOT exposed.
+        return TelemetryReading(
             transformer_id=spec.id,
-            voltage_v=actual_v_v,
-            voltage_kv=actual_v_kv,
-            current_a=current_a,
-            active_power_kw=active_power_kw,
-            apparent_power_kva=apparent_power_kva,
-            reactive_power_kvar=reactive_power_kvar,
-            power_factor=power_factor,
-            frequency_hz=frequency_hz,
-            oil_temp_c=oil_temp,
-            winding_temp_c=winding_temp,
-            ambient_temp_c=round(ambient_temp, 1),
-            load_percentage=load_percentage,
-            communication_status=comm_status,
-            is_simulated=True
+            timestamp=timestamp,
+            vrms=measured_vrms,
+            irms=measured_irms,
+            winding_hotspot_temperature=hotspot_temp,
+            moisture=moisture_val,
+            sensor_status=sensor_status,
+            is_mock_data=True
         )
-        return reading
 
     def tick(self) -> Dict[str, TelemetryReading]:
-        """Execute one simulation cycle: generate fresh telemetry and evaluate threshold alarms."""
+        """Execute one simulation step across the fleet, evaluate anomalies, and trigger debounced inspection alerts."""
         if storage.sim_paused:
             return storage.get_all_latest_telemetry()
 
@@ -362,103 +295,72 @@ class TelemetrySimulator:
             self.last_valid_telemetry[spec.id] = reading
             results[spec.id] = reading
 
-            # Evaluate hysteresis-aware alert rules
-            self._evaluate_telemetry_alerts(spec, reading)
+            # Anomaly and Inspection Notification Evaluation
+            self._evaluate_and_notify(spec, reading)
 
         return results
 
-    def _evaluate_telemetry_alerts(self, spec: TransformerSpec, reading: TelemetryReading):
-        """Hysteresis filter: triggers alert after persistent violation to prevent alarm chatter."""
-        is_abnormal = False
-        alert_candidate = None
+    def _evaluate_and_notify(self, spec: TransformerSpec, reading: TelemetryReading):
+        """
+        Detects abnormal readings, performs hysteresis checks to avoid repeated alert spam,
+        and generates inspection notifications when anomalies or persistent fluctuations occur.
+        """
+        history = storage.get_telemetry_history(spec.id, limit=10)
+        anomalies = condition_evaluator.detect_anomalies(spec, reading, history)
 
-        if reading.communication_status == CommunicationStatus.OFFLINE:
-            alert_candidate = {
-                "category": AlertCategory.COMMUNICATION,
-                "severity": AlertSeverity.CRITICAL,
-                "metric": "communication_status",
-                "val": 0.0,
-                "thresh": 1.0,
-                "unit": "status",
-                "msg": f"Loss of SCADA telemetry connection from {spec.name}.",
-                "rec": "Inspect field RTU, modem antenna, and substation switch."
-            }
-            is_abnormal = True
-        elif reading.load_percentage >= 115.0:
-            alert_candidate = {
-                "category": AlertCategory.OVERLOAD,
-                "severity": AlertSeverity.CRITICAL,
-                "metric": "load_percentage",
-                "val": reading.load_percentage,
-                "thresh": 115.0,
-                "unit": "%",
-                "msg": f"Critical overload on {spec.id} ({reading.load_percentage}%). Risk of accelerated insulation degradation.",
-                "rec": "Execute emergency load transfer or shed non-critical feeders."
-            }
-            is_abnormal = True
-        elif reading.load_percentage >= 100.0:
-            alert_candidate = {
-                "category": AlertCategory.OVERLOAD,
-                "severity": AlertSeverity.WARNING,
-                "metric": "load_percentage",
-                "val": reading.load_percentage,
-                "thresh": 100.0,
-                "unit": "%",
-                "msg": f"Sustained rated load exceeded on {spec.id} ({reading.load_percentage}%).",
-                "rec": "Monitor winding hotspot temp and prepare contingency switching."
-            }
-            is_abnormal = True
-        elif reading.oil_temp_c >= 88.0:
-            alert_candidate = {
-                "category": AlertCategory.TEMPERATURE,
-                "severity": AlertSeverity.CRITICAL,
-                "metric": "oil_temp_c",
-                "val": reading.oil_temp_c,
-                "thresh": 88.0,
-                "unit": "°C",
-                "msg": f"Top oil temperature critical on {spec.id} ({reading.oil_temp_c}°C).",
-                "rec": "Verify forced-air cooling fans and reduce apparent loading."
-            }
-            is_abnormal = True
-        elif reading.oil_temp_c >= 78.0:
-            alert_candidate = {
-                "category": AlertCategory.TEMPERATURE,
-                "severity": AlertSeverity.WARNING,
-                "metric": "oil_temp_c",
-                "val": reading.oil_temp_c,
-                "thresh": 78.0,
-                "unit": "°C",
-                "msg": f"Elevated top oil temperature on {spec.id} ({reading.oil_temp_c}°C).",
-                "rec": "Check ambient temperature ventilation and cooling radiator oil flow."
-            }
-            is_abnormal = True
+        active_types = {a.anomaly_type.value for a in anomalies}
+        prev_types = self.ongoing_alert_categories.get(spec.id, set())
 
-        # Track persistence
-        count = self.consecutive_abnormal_ticks.get(spec.id, 0)
-        if is_abnormal:
-            count += 1
-            self.consecutive_abnormal_ticks[spec.id] = count
-            # Trigger alert once threshold persistence is met (>= 2 ticks)
-            if count == 2 and alert_candidate:
-                alert_id = f"ALT-{int(datetime.now(timezone.utc).timestamp()) % 100000:05d}"
-                alert = Alert(
-                    id=alert_id,
-                    transformer_id=spec.id,
-                    zone=spec.zone,
-                    severity=alert_candidate["severity"],
-                    category=alert_candidate["category"],
-                    triggering_metric=alert_candidate["metric"],
-                    triggering_value=alert_candidate["val"],
-                    threshold_value=alert_candidate["thresh"],
-                    unit=alert_candidate["unit"],
-                    message=alert_candidate["msg"],
-                    recommended_action=alert_candidate["rec"],
-                    status=AlertStatus.ACTIVE,
-                    created_at=datetime.now(timezone.utc),
-                    is_simulated=True
-                )
-                storage.add_alert(alert)
+        # If abnormal conditions exist
+        if anomalies:
+            self.consecutive_abnormal_ticks[spec.id] = self.consecutive_abnormal_ticks.get(spec.id, 0) + 1
+
+            # Trigger alert after debouncing persistence (>= 2 ticks) for NEW anomaly types
+            # to avoid spamming alerts for every reading of the same ongoing condition
+            for anm in anomalies:
+                atype_str = anm.anomaly_type.value
+                if atype_str not in prev_types and self.consecutive_abnormal_ticks[spec.id] >= 2:
+                    alert_id = f"ALT-{int(datetime.now(timezone.utc).timestamp()) % 100000:05d}"
+                    alert = Alert(
+                        id=alert_id,
+                        transformer_id=spec.id,
+                        substation=spec.substation,
+                        severity=AlertSeverity(anm.severity.value.upper()),
+                        category=AlertCategory(atype_str),
+                        triggering_metric=anm.detected_parameter,
+                        triggering_value=float(reading.vrms if "Voltage" in anm.detected_parameter else reading.irms if "Current" in anm.detected_parameter else reading.winding_hotspot_temperature),
+                        threshold_value=float(settings.SUPPLY_VOLTAGE_MAX if "Over-Voltage" in anm.anomaly_name else settings.SUPPLY_VOLTAGE_MIN if "Under-Voltage" in anm.anomaly_name else spec.rated_irms),
+                        unit="V" if "Voltage" in anm.detected_parameter else "A" if "Current" in anm.detected_parameter else "°C",
+                        message=f"{anm.anomaly_name} detected on {spec.id} ({anm.measured_value}). {anm.applicable_threshold}.",
+                        recommended_action=anm.recommended_action,
+                        inspection_recommended=True,
+                        status=AlertStatus.ACTIVE,
+                        created_at=datetime.now(timezone.utc),
+                        is_mock_data=True
+                    )
+                    storage.add_alert(alert)
+
+                    # Create corresponding inspection requirement record
+                    insp_id = f"INSP-{int(datetime.now(timezone.utc).timestamp()) % 100000:05d}"
+                    prio = InspectionPriority.CRITICAL if anm.severity.value == "Critical" else InspectionPriority.HIGH
+                    insp_record = InspectionRecord(
+                        id=insp_id,
+                        transformer_id=spec.id,
+                        transformer_name=spec.name,
+                        reason=f"Abnormal reading detected: {anm.anomaly_name} ({anm.measured_value})",
+                        priority=prio,
+                        status=InspectionStatus.PENDING,
+                        detected_at=datetime.now(timezone.utc),
+                        recommended_action=anm.recommended_action,
+                        assigned_technician="Substation Electrical Field Team",
+                        notes="Automated inspection recommendation triggered by abnormal telemetry.",
+                        is_mock_data=True
+                    )
+                    storage.add_inspection(insp_record)
+
+            self.ongoing_alert_categories[spec.id] = active_types
         else:
             self.consecutive_abnormal_ticks[spec.id] = 0
+            self.ongoing_alert_categories[spec.id] = set()
 
 simulator = TelemetrySimulator()

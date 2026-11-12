@@ -3,9 +3,8 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Activity,
-  Cpu,
-  GitCompare,
-  Wrench,
+  ShieldAlert,
+  ClipboardCheck,
   Zap,
   ChevronLeft,
   ChevronRight,
@@ -21,9 +20,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/monitoring', label: 'Live Monitoring', icon: Activity },
-    { to: '/intelligence', label: 'AI Intelligence', icon: Cpu },
-    { to: '/load-balancing', label: 'Load Balancing', icon: GitCompare },
-    { to: '/maintenance', label: 'Maintenance', icon: Wrench },
+    { to: '/anomalies', label: 'Anomaly & Condition', icon: ShieldAlert },
+    { to: '/maintenance', label: 'Inspection & Maintenance', icon: ClipboardCheck },
   ];
 
   return (
@@ -44,14 +42,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 TRANSFORMER <span className="text-cyan-400">AI</span>
               </h1>
               <p className="text-[10px] text-slate-400 font-medium truncate">
-                Smart Grid Intelligence
+                Monitoring & Condition Assessment
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Simulation Badge in Sidebar */}
+      {/* Mock Telemetry Mode Badge */}
       {!collapsed && (
         <div className="px-4 py-3 border-b border-slate-800/60">
           <SimulationBadge />
@@ -86,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       <div className="p-3 border-t border-slate-800/80 flex items-center justify-between">
         {!collapsed && (
           <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
-            SCADA CORE v1.0
+            SYSTEM v2.0
           </span>
         )}
         <button

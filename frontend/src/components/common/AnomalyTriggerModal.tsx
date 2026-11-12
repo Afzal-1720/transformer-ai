@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Zap, Thermometer, WifiOff, RefreshCw, X, Play } from 'lucide-react';
+import { AlertTriangle, Zap, Thermometer, WifiOff, RefreshCw, X, Play, TrendingUp, TrendingDown } from 'lucide-react';
 import { useSimulation } from '../../context/SimulationContext';
 
 interface AnomalyTriggerModalProps {
@@ -11,11 +11,11 @@ interface AnomalyTriggerModalProps {
 export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
   isOpen,
   onClose,
-  defaultTransformerId = 'TX-101',
+  defaultTransformerId = 'TX-001',
 }) => {
   const { injectAnomaly, clearAnomaly, status } = useSimulation();
   const [selectedTx, setSelectedTx] = useState(defaultTransformerId);
-  const [anomalyType, setAnomalyType] = useState('overload');
+  const [anomalyType, setAnomalyType] = useState('over_current');
   const [duration, setDuration] = useState(120);
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,9 +53,9 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Inject Demonstration Anomaly</h2>
+              <h2 className="text-lg font-bold">Demonstration Anomaly Injector</h2>
               <p className="text-xs text-slate-400">
-                Simulate synthetic grid stress conditions to test AI detection and alert response
+                Simulate abnormal electrical readings to evaluate real-time anomaly detection and inspection workflows
               </p>
             </div>
           </div>
@@ -70,8 +70,8 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
         {currentActive && (
           <div className="mt-4 p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 flex items-center justify-between">
             <div className="text-xs">
-              <span className="font-semibold text-rose-300">Active Anomaly: </span>
-              <span className="text-rose-200 uppercase">{currentActive.type}</span> on {selectedTx}
+              <span className="font-semibold text-rose-300">Active Test Anomaly: </span>
+              <span className="text-rose-200 uppercase font-mono">{currentActive.type}</span> on {selectedTx}
             </div>
             <button
               onClick={handleClear}
@@ -93,30 +93,30 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
               onChange={(e) => setSelectedTx(e.target.value)}
               className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:outline-hidden focus:border-cyan-500"
             >
-              <option value="TX-101">TX-101 — Substation North (Heavy Industrial 2500 kVA)</option>
-              <option value="TX-102">TX-102 — Substation North (Aux Feeder 1500 kVA)</option>
-              <option value="TX-201">TX-201 — Substation East (Commercial Core 2000 kVA)</option>
-              <option value="TX-202">TX-202 — Substation East (Retail Plaza 1000 kVA)</option>
-              <option value="TX-301">TX-301 — Substation South (Residential 1250 kVA)</option>
-              <option value="TX-302">TX-302 — Substation South (Residential 1250 kVA)</option>
-              <option value="TX-303">TX-303 — Substation South (Hill Residential 800 kVA)</option>
-              <option value="TX-401">TX-401 — Substation West (Data Center 3000 kVA)</option>
-              <option value="TX-402">TX-402 — Substation West (Tech Campus 2500 kVA)</option>
-              <option value="TX-501">TX-501 — Central Inter-tie (Transmission 5000 kVA)</option>
+              <option value="TX-001">TX-001 — Substation North Feeder Unit 1 (100 Arms / 240 Vrms)</option>
+              <option value="TX-002">TX-002 — Substation North Feeder Unit 2 (125 Arms / 240 Vrms)</option>
+              <option value="TX-003">TX-003 — Substation East Commercial Unit 1 (150 Arms / 240 Vrms)</option>
+              <option value="TX-004">TX-004 — Substation East Retail Unit 2 (80 Arms / 240 Vrms)</option>
+              <option value="TX-005">TX-005 — Substation South Residential Unit 1 (100 Arms / 240 Vrms)</option>
+              <option value="TX-006">TX-006 — Substation South Residential Unit 2 (100 Arms / 240 Vrms)</option>
+              <option value="TX-007">TX-007 — Substation West Tech Park Unit 1 (200 Arms / 240 Vrms)</option>
+              <option value="TX-008">TX-008 — Substation West Data Center Unit 2 (175 Arms / 240 Vrms)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Anomaly Scenario
+              Abnormal Operating Condition
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
-                { id: 'overload', label: 'Sustained Overload (125%)', desc: 'Simulates excessive industrial demand', icon: Zap },
-                { id: 'high_temp', label: 'Cooling Loss (+35°C)', desc: 'Simulates radiator fan trip', icon: Thermometer },
-                { id: 'voltage_sag', label: 'Feeder Voltage Sag (-15%)', desc: 'Simulates upstream impedance surge', icon: AlertTriangle },
-                { id: 'sensor_freeze', label: 'Sensor Freeze (Stale)', desc: 'Sensor outputs frozen identical telemetry', icon: RefreshCw },
-                { id: 'offline', label: 'SCADA Telemetry Loss', desc: 'Full communications packet drop', icon: WifiOff },
+                { id: 'over_voltage', label: 'Over-Voltage (>254 V)', desc: 'Supply exceeds 254V statutory limit & +6%', icon: TrendingUp },
+                { id: 'under_voltage', label: 'Under-Voltage (<216 V)', desc: 'Supply drops below 216V statutory limit & -10%', icon: TrendingDown },
+                { id: 'over_current', label: 'Over-Current (>Rated +10%)', desc: 'Load exceeds rated current & limit', icon: Zap },
+                { id: 'overheating', label: 'Winding Overheating (>95°C)', desc: 'Thermal sensor measures dangerous hotspot rise', icon: Thermometer },
+                { id: 'sudden_load_variation', label: 'Sudden Load Surge (+35%)', desc: 'Abrupt current step increase on feeder', icon: AlertTriangle },
+                { id: 'sensor_freeze', label: 'Sensor Freeze (Stale)', desc: 'ADC lockup: frozen identical readings', icon: RefreshCw },
+                { id: 'offline', label: 'Sensor Offline / Loss', desc: 'SCADA packet drop / no telemetry', icon: WifiOff },
               ].map((item) => {
                 const Icon = item.icon;
                 const isSelected = anomalyType === item.id;
@@ -125,14 +125,14 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => setAnomalyType(item.id)}
-                    className={`p-3 rounded-lg border text-left transition-all ${
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
                       isSelected
                         ? 'bg-cyan-950/40 border-cyan-500 text-cyan-300'
                         : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <Icon className={`w-4 h-4 ${isSelected ? 'text-cyan-400' : 'text-slate-400'}`} />
+                      <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-cyan-400' : 'text-slate-400'}`} />
                       <span className="text-xs font-semibold">{item.label}</span>
                     </div>
                     <p className="text-[11px] text-slate-400 line-clamp-1">{item.desc}</p>
@@ -185,7 +185,7 @@ export const AnomalyTriggerModal: React.FC<AnomalyTriggerModalProps> = ({
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all shadow-[0_0_15px_rgba(0,242,254,0.3)] disabled:opacity-50"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Inject Simulation Anomaly</span>
+            <span>Inject Test Anomaly</span>
           </button>
         </div>
       </div>

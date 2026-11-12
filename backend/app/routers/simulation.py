@@ -14,7 +14,7 @@ def get_simulation_status():
         "is_paused": storage.sim_paused,
         "speed_multiplier": storage.sim_speed_multiplier,
         "active_anomalies": storage.get_active_anomalies(),
-        "is_simulated": True
+        "is_mock_data": True
     }
 
 @router.post("/tick")
@@ -23,7 +23,7 @@ def trigger_tick():
     return {
         "status": "ticked",
         "updated_units": len(results),
-        "is_simulated": True
+        "is_mock_data": True
     }
 
 @router.post("/pause")
@@ -45,7 +45,7 @@ def set_speed(payload: SpeedPayload):
 def reset_simulation():
     storage.telemetry_history.clear()
     storage.alerts.clear()
-    storage.maintenance_tasks.clear()
+    storage.inspections.clear()
     storage.injected_anomalies.clear()
     simulator.initialize_system()
     return {"status": "reset", "message": "Simulation reset to pristine baseline with 48h telemetry."}

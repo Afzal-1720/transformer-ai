@@ -2,17 +2,20 @@ import type {
   DashboardSummary,
   TransformerDetail,
   TelemetryReading,
+  TransformerConditionReport,
+  AnomalySummary,
   Alert,
-  ForecastResponse,
-  AnomalyDetectionResponse,
-  ExplainableRiskResponse,
-  LoadTransferRequest,
-  LoadTransferResponse,
-  MaintenanceTask,
-  AssetHealthRecord,
+  InspectionRecord,
   SimulationStatus,
 } from '../types';
 
+// =========================================================================
+// FUTURE HARDWARE INTEGRATION:
+// Configure VITE_API_BASE_URL to point to your physical IoT / SCADA Gateway
+// or hardware API endpoint. The endpoints below consume Vrms, Arms,
+// Winding Hotspot Temperature, and Moisture telemetry from connected sensors.
+// Leave empty for local development with Vite dev proxy.
+// =========================================================================
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -46,11 +49,11 @@ export const api = {
   // Dashboard
   getDashboardSummary: () => request<DashboardSummary>('/api/dashboard/summary'),
 
-  // Transformers
-  getTransformers: (zone?: string, status?: string) => {
+  // Transformers Fleet & Telemetry
+  getTransformers: (substation?: string, condition?: string) => {
     const params = new URLSearchParams();
-    if (zone && zone !== 'ALL') params.append('zone', zone);
-    if (status && status !== 'ALL') params.append('status', status);
+    if (substation && substation !== 'ALL') params.append('substation', substation);
+    if (condition && condition !== 'ALL') params.append('condition', condition);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return request<TransformerDetail[]>(`/api/transformers${qs}`);
   },
@@ -59,6 +62,14 @@ export const api = {
 
   getTransformerTelemetry: (id: string, limit: number = 60) =>
     request<TelemetryReading[]>(`/api/transformers/${id}/telemetry?limit=${limit}`),
+
+  // Dedicated Condition Assessment Report
+  getTransformerCondition: (id: string) =>
+    request<TransformerConditionReport>(`/api/transformers/${id}/condition`),
+
+  // Dedicated Anomaly Detection
+  getTransformerAnomalies: (id: string) =>
+    request<AnomalySummary>(`/api/transformers/${id}/anomalies`),
 
   // Alerts
   getAlerts: (params: { status?: string; severity?: string; transformer_id?: string } = {}) => {
@@ -76,53 +87,35 @@ export const api = {
   resolveAlert: (id: string) =>
     request<Alert>(`/api/alerts/${id}/resolve`, { method: 'POST' }),
 
-  // Predictions & AI
-  getForecast: (transformerId: string) =>
-    request<ForecastResponse>(`/api/predictions/${transformerId}`),
-
-  detectAnomalies: (transformerId: string) =>
-    request<AnomalyDetectionResponse>('/api/anomalies/detect', {
-      method: 'POST',
-      body: JSON.stringify({ transformer_id: transformerId }),
-    }),
-
-  getExplainableRisk: (transformerId: string) =>
-    request<ExplainableRiskResponse>(`/api/predictions/${transformerId}/risk`),
-
-  // Load Balancing
-  simulateLoadTransfer: (payload: LoadTransferRequest) =>
-    request<LoadTransferResponse>('/api/load-balancing/simulate', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Maintenance
-  getMaintenanceOverview: (transformerId?: string) => {
-    const qs = transformerId && transformerId !== 'ALL' ? `?transformer_id=${transformerId}` : '';
-    return request<{ asset_register: AssetHealthRecord[]; tasks: MaintenanceTask[] }>(`/api/maintenance${qs}`);
+  // Inspections & Maintenance Workflows
+  getInspections: (params: { transformer_id?: string; status?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.transformer_id && params.transformer_id !== 'ALL') q.append('transformer_id', params.transformer_id);
+    if (params.status && params.status !== 'ALL') q.append('status', params.status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<InspectionRecord[]>(`/api/maintenance/inspections${qs}`);
   },
 
-  createMaintenanceTask: (payload: {
+  createInspection: (payload: {
     transformer_id: string;
-    title: string;
-    description: string;
+    reason: string;
     priority: string;
-    assigned_technician: string;
-    scheduled_date: string;
+    recommended_action: string;
+    assigned_technician?: string;
     notes?: string;
   }) =>
-    request<MaintenanceTask>('/api/maintenance', {
+    request<InspectionRecord>('/api/maintenance/inspections', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
-  updateMaintenanceTask: (taskId: string, payload: Partial<MaintenanceTask>) =>
-    request<MaintenanceTask>(`/api/maintenance/${taskId}`, {
+  updateInspection: (id: string, payload: Partial<InspectionRecord>) =>
+    request<InspectionRecord>(`/api/maintenance/inspections/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
 
-  // Simulation Controls
+  // Simulation Controls & Demo Anomaly Injection
   getSimulationStatus: () => request<SimulationStatus>('/api/simulation/status'),
 
   pauseSimulation: () => request<{ is_paused: boolean }>('/api/simulation/pause', { method: 'POST' }),

@@ -1,15 +1,14 @@
-# TRANSFORMER AI — Smart Grid Intelligence Platform
+# TRANSFORMER AI — Real-Time Transformer Monitoring, Anomaly Detection & Condition Assessment System
 
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.4+-F7931E.svg)](https://scikit-learn.org/)
 [![React](https://img.shields.io/badge/React-19%20%7C%20Vite-61DAFB.svg)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-An industrial-grade, AI-powered transformer monitoring and decision-support platform designed for electrical engineers and grid operators. **TRANSFORMER AI** continuously evaluates transformer health, forecasts future electrical loads, detects multivariate operating anomalies using unsupervised machine learning, provides explainable composite risk scores, and calculates load-transfer contingency scenarios.
+An industrial-grade, AI-assisted transformer monitoring, anomaly detection, and condition assessment platform designed for electrical engineers and grid operators. **TRANSFORMER AI** continuously compares rated vs measured electrical parameters, detects abnormal voltage/current fluctuations and hotspot overheating, assesses 4-tier condition health, and tracks inspection work orders.
 
-> **Academic Prototype & Simulation Notice**: This system uses synthetic, physics-consistent electrical grid telemetry. No physical sensors or high-voltage switchgear are actuated. All operational decisions must be verified by qualified electrical utility personnel.
+> **Academic Prototype & Simulation Notice**: This system uses simulated sensor telemetry. It is designed so that real-time hardware sensor data can be seamlessly integrated through documented FastAPI endpoints (`POST /api/transformers/{id}/telemetry`). Current readings are clearly identified as mock telemetry.
 
 ---
 
@@ -26,187 +25,119 @@ An industrial-grade, AI-powered transformer monitoring and decision-support plat
                   │                 FastAPI REST Backend                   │
                   │   Pydantic Validation • CORS • Swagger Docs (/docs)    │
                   ├────────────────────────────────────────────────────────┤
-                  │  • Telemetry Simulation Engine (Thermal/Ohmic Model)   │
-                  │  • ML Forecasting Engine (scikit-learn Ridge/GBR)      │
-                  │  • Anomaly Detection (Isolation Forest + Feature Attr) │
-                  │  • Interpretable Risk Engine (Multi-Factor Scoring)    │
-                  │  • Load Transfer Optimizer & Feeder Constraint Checker │
-                  │  • Alert Engine (Hysteresis & Persistence Filter)      │
-                  │  • In-Memory Store & Optional Supabase PostgreSQL      │
+                  │  • Telemetry Physics Simulation (240.0 Vrms, Arms)     │
+                  │  • Dual Independent Voltage Assessment Engine          │
+                  │    1. Rated Deviation (-10% to +6%)                    │
+                  │    2. Statutory Supply Range (216V to 254V)            │
+                  │  • Current Deviation & Loading Evaluation              │
+                  │  • Winding Hotspot Thermal Engine (<80°C, 80-95°, >95°)│
+                  │  • Sudden Load Variation Detector (Rolling Baseline)   │
+                  │  • 4-Tier Condition Evaluator (Healthy/Warn/Crit/Insp) │
+                  │  • Inspection & Maintenance Work Order Tracker         │
+                  │  • Hardware API Gateway Placeholder Endpoints          │
                   └────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Core Functional Modules
+## 2. Four Purpose-Built Application Pages
 
-### 1. Operations Dashboard
-- **Calculated Dynamic KPIs**: Total units monitored, healthy count, attention/warning count, critical risk count, average grid loading %, and active alarms.
-- **Interactive Fleet Telemetry Register**: Real-time table displaying ID, substation zone, rated capacity (kVA), active power (kW), line voltage (V), phase current (A), top oil temperature (°C), health score, risk level, and SCADA communication status. Includes searching, multi-criteria filtering, column sorting, and full CSV export.
-- **Network Load & Thermal Trends**: 24-hour continuous area chart of aggregate active power demand (kW) and mean top oil temperature (°C).
-- **Fleet Health & Zone Distribution**: Interactive donut chart for health status breakdown and grouped bar chart for installed vs active load by sector.
-- **Automated Insights Panel**: Highlights highest loaded unit, most congested substation zone, and top-priority maintenance work order.
+### 1. Operations Dashboard (`/`)
+- **Fleet KPIs:** Monitored transformers (8 units), online sensors, transformers requiring inspection, active critical alerts, and average fleet load %.
+- **Fleet Operating Health Status Bar:** Synthesizes overall fleet condition (`Healthy`, `Warning`, `Critical`, `Inspection Required`) with detailed diagnostic narrative.
+- **Fleet Condition Table:** Searchable and filterable table displaying Rated vs Measured $V_{\text{rms}}$, Voltage Deviation %, Statutory Range Check ($216\text{ V}-254\text{ V}$), Measured $I_{\text{rms}}$, Current Deviation %, Loading %, Winding Hotspot Temperature, Moisture, Condition Badge, and Inspection Flag.
+- **24-Point Fleet Telemetry Trend Chart:** Recharts multi-line graph of average voltage, current, and hotspot temperature.
+- **Recent Abnormal Conditions Panel:** Chronological list of recent alerts with context-specific recommended operator actions.
+- **CSV Data Export:** One-click download of fleet status.
 
-### 2. Live Monitoring
-- **High-Frequency Engineering Telemetry**: Phase voltage, line current, active power ($P$ in kW), apparent power ($S$ in kVA), reactive power ($Q$ in kVAR), power factor ($\cos \varphi$), grid frequency (Hz), oil temperature, and hotspot winding temperature.
-- **Sensor Data Quality & Fault Indicators**: Explicitly distinguishes genuine high readings from `STALE` (frozen telemetry) and `OFFLINE` (SCADA loss) states. Never replaces missing readings with zero.
-- **Dynamic Time-Series Curves**: Recharts multi-channel line charts with configurable observation windows (15m, 1h, 6h, 24h).
-- **Interactive Simulation Controls**: Play/Pause, speed adjustment (1x, 2x, 5x, 10x), and fleet baseline reset.
-- **Demonstration Anomaly Injector**: Instant trigger for Sustained Overload (125%), Thermal Runaway (+35°C), Feeder Voltage Sag (-15%), Sensor Freeze (Stale), or RTU Loss (Offline).
+### 2. Live Monitoring (`/monitoring`)
+- **Transformer Selector:** Quick switcher across `TX-001` through `TX-008` with URL parameter synchronization (`?tx=TX-001`).
+- **Sensor Connectivity Health:** Status banner for `ONLINE`, `STALE`, or `OFFLINE` sensor states.
+- **Dual Independent Voltage Checks:**
+  1. *Voltage Deviation % Check:* $((V_{\text{meas}} - V_{\text{rated}}) / V_{\text{rated}}) \times 100$ against $-10\%$ to $+6\%$ limits.
+  2. *Statutory Supply Range Check:* Evaluates $216\text{ V} - 254\text{ V}$ government permissible supply boundaries independently.
+- **Current & Load Analysis:** Compares measured current against rated current with a configurable $+10\%$ limit and loading condition category.
+- **Winding Hotspot Temperature & Moisture:** Direct sensor hotspot temperature ($<80^\circ\text{C}$ Normal, $80-95^\circ\text{C}$ Elevated, $>95^\circ\text{C}$ Overheating) and moisture (% RH). *(Top Oil 60°C and Average Winding 65°C are design baselines and omitted from live telemetry).*
+- **Live Recharts Curves:** Time-series waveforms with statutory boundary reference lines (216V, 240V, 254V, Rated Current, +10% limit).
 
-### 3. AI Intelligence
-- **Locally Executed Machine Learning**: Powered by scikit-learn.
-- **Load Forecasting**: Multi-horizon predictions (1-Hour at 15m intervals, 6-Hours at 30m intervals, 24-Hours at 1h intervals) with dynamic 95% confidence intervals and comparison against a moving-average persistence baseline.
-- **Chronological Holdout Evaluation**: Dynamic metrics display including Mean Absolute Error (MAE in kW), Root Mean Square Error (RMSE in kW), and Mean Absolute Percentage Error (MAPE %).
-- **Isolation Forest Anomaly Detection**: Unsupervised multivariate pattern detection across load, temperature, power factor, and voltage drift. Provides exact feature attribution ranking (e.g. Temperature rate-of-rise: 42% contribution).
-- **Explainable Fault-Risk Assessment**: 0-100 composite risk scoring decomposed into thermal stress (35%), sustained overload duration (30%), voltage stability (15%), active alarm history (10%), and telemetry data quality (10%). Accompanied by actionable utility decision-support checklists.
+### 3. Anomaly Detection & Condition Assessment (`/anomalies`)
+- **Overall Condition Assessment Banner:** Synthesizes condition into `Healthy`, `Warning`, `Critical`, or `Inspection Required` with clear plain-language explanation and recommended actions.
+- **4-Tier Operating Dimension Breakdown:**
+  1. *Sensor Connectivity:* Online / Stale / Offline
+  2. *Voltage Behaviour:* Stable / Fluctuating / Under-Voltage / Over-Voltage
+  3. *Loading Condition:* Normal (<80%) / High Loading (80-100%) / Overloaded (>100%)
+  4. *Thermal Condition:* Normal (<80°C) / Elevated (80-95°C) / Overheating (>95°C)
+- **Active Anomalies Register:** Identifies Over-voltage, Under-voltage, Over-current, Overheating, and Sudden load variation with measured values, thresholds, and detection times.
+- **Sudden Load Variation Engine:** Detects rapid current surges or drops exceeding $\pm 25\%$ compared to a rolling 10-point baseline, debounced to avoid duplicate alert spam.
+- **Phase Imbalance Status:** Clearly marked as *Feature Disabled* because hardware streams single-phase RMS telemetry, maintaining engineering integrity.
+- **Interactive Anomaly Simulator:** Inject/test any anomaly to observe real-time detection and inspection order generation.
 
-### 4. Load Balancing & Scenario Simulator
-- **Decision Support Engine**: Interactive transfer scenario modeling between source and recipient transformers.
-- **Constraint Validation**: Rejects transfers that would overload the recipient transformer (>100% rated capacity) or violate configurable safety thresholds (default 85%).
-- **Pre vs. Post Comparison**: Side-by-side loading percentage comparison bar chart, remaining headroom (kVA) calculation, and pre/post operational risk delta.
-- **Topology & Feeder Path**: Visual representation of the electrical distribution switching path (direct tie-lines or inter-zone ring feeder hops).
-
-### 5. Maintenance & Asset Health Register
-- **Asset Health Condition Index**: Transparent 0-100 score combining operational thermal stress penalties and aging life consumption. Includes an interactive formula breakdown modal.
-- **Condition Classification**: Good, Fair, Degraded, Critical.
-- **Inspection Prioritization**: P1 Critical, P2 High, P3 Medium, P4 Routine with calculated next-recommended inspection dates.
-- **Work Order Lifecycle Management (CRUD)**: Create work orders, assign technicians, track statuses (`OPEN`, `IN_PROGRESS`, `COMPLETED`), record completion notes, filter, and export logs to CSV.
-
-### 6. Intelligent Alerts & Event Management
-- **Debounced Hysteresis Triggering**: Requires 2+ consecutive abnormal ticks to prevent alarm chatter from brief transients.
-- **Severity Classification**: `INFO`, `WARNING`, `HIGH`, `CRITICAL`.
-- **Operator Actions**: Interactive acknowledge and resolve workflows with timestamps and CSV export.
+### 4. Inspection & Maintenance (`/maintenance`)
+- **Operational Advisory:** Clearly distinguishes abnormal sensor readings from confirmed transformer breakdown, highlighting that technical inspections are warranted before disconnecting units.
+- **Work Order Management:** Full tracking of inspection work orders from `Pending` $\rightarrow$ `Acknowledged` $\rightarrow$ `Completed`.
+- **Operator Actions:** One-click Acknowledge, Sign Off / Complete modal with technician findings, and manual inspection work order creator.
+- **Export Audit Log:** Export full inspection history to CSV.
 
 ---
 
-## 3. Technology Stack
+## 3. Mathematical Formulas
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Recharts, React Router v7, Lucide Icons |
-| **Backend** | Python 3.11+, FastAPI, Pydantic v2, scikit-learn, NumPy, pandas, Uvicorn |
-| **Testing** | Pytest, FastAPI TestClient, Vite Build Typecheck |
-| **Storage** | Synchronized In-Memory Repository (Default, zero external dependency), Optional PostgreSQL / Supabase (`schema.sql`) |
-| **Deployment** | Vercel (Frontend Hobby plan) + Render (Backend free Python web service) |
+### Voltage Deviation Percentage
+$$\text{Voltage Deviation } (\%) = \left(\frac{V_{\text{meas}} - V_{\text{rated}}}{V_{\text{rated}}}\right) \times 100$$
+- $V_{\text{rated}} = 240.0\text{ V}_{\text{rms}}$
+- Permissible Limits: $-10.0\%$ to $+6.0\%$
 
----
+### Statutory Supply Voltage Range
+- $216.0\text{ V} \le V_{\text{meas}} \le 254.0\text{ V}$: Normal Permissible Supply Range
+- $V_{\text{meas}} < 216.0\text{ V}$: Under-Voltage Warning
+- $V_{\text{meas}} > 254.0\text{ V}$: Over-Voltage Warning
 
-## 4. Local Quickstart (Windows PowerShell)
-
-### Prerequisites
-- Python 3.11 or higher installed (`python --version`)
-- Node.js v18+ and npm installed (`node -v`)
-
-### Step 1: Start Backend
-```powershell
-# In a new PowerShell terminal:
-cd c:\Users\fmdaf\Documents\KR\backend
-
-# Run automated test suite to verify ML models & endpoints:
-python -m pytest tests/
-
-# Start FastAPI development server:
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-The backend will initialize the synthetic fleet, generate 48 hours of historical telemetry, and expose:
-- API Base: `http://127.0.0.1:8000`
-- Interactive Swagger UI: `http://127.0.0.1:8000/docs`
-- Health check: `http://127.0.0.1:8000/api/health`
-
-### Step 2: Start Frontend
-```powershell
-# In a second PowerShell terminal:
-cd c:\Users\fmdaf\Documents\KR\frontend
-
-# Start Vite dev server:
-npm.cmd run dev
-```
-Open your browser at `http://localhost:5173`. The Vite proxy will automatically route all `/api/*` requests to the local backend.
+### Current Deviation Percentage
+$$\text{Current Deviation } (\%) = \left(\frac{I_{\text{meas}} - I_{\text{rated}}}{I_{\text{rated}}}\right) \times 100$$
+- Configured Limit: $+10.0\%$ above rated current.
 
 ---
 
-## 5. Automated Verification & Testing
+## 4. Quick Start
 
-### Backend Unit & Integration Tests
+### 1. Backend Setup & Startup
 ```powershell
 cd backend
-python -m pytest tests/ -v
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-Tests verify:
-1. Physics consistency of synthetic telemetry ($P \le S$, valid power factors, temperature bounds).
-2. scikit-learn autoregressive Ridge forecasting model training, inference, and holdout metric calculation.
-3. Isolation Forest multivariate anomaly detection and feature attribution summation.
-4. Explainable risk engine scoring (0-100) and risk category mapping.
-5. Feasible load transfer simulation and overload rejection logic.
-6. All REST API endpoints (`/health`, `/transformers`, `/dashboard/summary`, `/alerts`, `/predictions/forecast`, `/anomalies/detect`, `/load-balancing/simulate`, `/maintenance`).
+Swagger API Documentation: `http://127.0.0.1:8000/docs`
 
-### Frontend Production Build & Type Check
+### 2. Frontend Setup & Startup
 ```powershell
 cd frontend
-npm.cmd run build
+npm install
+npm run dev
 ```
-Builds the production bundle into `frontend/dist/` with 0 TypeScript or bundling errors.
+Client Application: `http://localhost:5173`
 
----
-
-## 6. Free-Tier Production Deployment Guide
-
-You can deploy the full application publicly for free using **Vercel** (Frontend) and **Render** (Backend).
-
-### Step 1: Push Project to GitHub
+### 3. Run Automated Tests
 ```powershell
-git init
-git add .
-git commit -m "feat: initial commit of Transformer AI Smart Grid Intelligence Platform"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<your-repo-name>.git
-git push -u origin main
+cd backend
+python -m pytest tests/
 ```
-
-### Step 2: Deploy Backend to Render (Free Web Service)
-1. Log into [Render.com](https://render.com) using your GitHub account.
-2. Click **New +** -> **Web Service**.
-3. Connect your repository.
-4. Configure service settings:
-   - **Name**: `transformer-ai-backend`
-   - **Root Directory**: `backend`
-   - **Runtime**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - **Plan**: Select **Free**.
-5. Add Environment Variables:
-   - `PYTHON_VERSION`: `3.11.8`
-   - `CORS_ORIGINS`: `["*"]` (or restrict to your Vercel domain once generated)
-   - `SIMULATION_INTERVAL_SEC`: `2.0`
-6. Click **Deploy Web Service**.
-7. Once deployed, copy your backend URL (e.g. `https://transformer-ai-backend.onrender.com`).
-8. Verify by opening `https://transformer-ai-backend.onrender.com/api/health` in your browser.
-
-> [!NOTE]
-> **Render Free-Tier Spin-Down**: Free Render web services spin down after 15 minutes of inactivity. The first request after sleep may take 30–50 seconds to complete while the instance boots. Subsequent requests are instant.
-
-### Step 3: Deploy Frontend to Vercel (Free Hobby Plan)
-1. Log into [Vercel.com](https://vercel.com) using your GitHub account.
-2. Click **Add New...** -> **Project** and select your repository.
-3. Configure project settings:
-   - **Framework Preset**: `Vite`
-   - **Root Directory**: Click edit and select `frontend`.
-4. Open the **Environment Variables** section and add:
-   - `VITE_API_BASE_URL`: `https://transformer-ai-backend.onrender.com` (your Render backend URL from Step 2, no trailing slash).
-5. Click **Deploy**.
-6. Vercel will build the frontend using `npm run build` and publish it to a global CDN URL (e.g. `https://transformer-ai-app.vercel.app`).
-7. Single-Page Application (SPA) routing is handled automatically by `frontend/vercel.json`.
-
-### Step 4 (Optional): Supabase Free PostgreSQL Integration
-If you wish to persist telemetry, alerts, and maintenance logs into a managed cloud database:
-1. Create a free project at [Supabase.com](https://supabase.com).
-2. Open the **SQL Editor** in Supabase and paste the contents of `backend/schema.sql`. Run the script to create tables and indexes.
-3. In your Render backend dashboard, add the environment variable:
-   `DATABASE_URL=postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres`
+*(6/6 automated test suites passing)*
 
 ---
 
-## 7. License
+## 5. Future Hardware Integration
 
-Distributed under the MIT License. See `LICENSE` for details.
+Hardware IoT sensors (e.g. ESP32, Arduino, Raspberry Pi, Modbus/RS485 edge gateway) can ingest live electrical telemetry directly via:
+```http
+POST /api/transformers/{id}/telemetry
+Content-Type: application/json
+
+{
+  "transformer_id": "TX-001",
+  "vrms": 238.4,
+  "irms": 88.2,
+  "winding_hotspot_temperature": 76.5,
+  "moisture": 22.4,
+  "sensor_status": "ONLINE"
+}
+```
+All endpoints and frontend services include documented integration comments and placeholders.

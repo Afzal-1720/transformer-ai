@@ -62,7 +62,7 @@ export const AlertsDrawer: React.FC<AlertsDrawerProps> = ({ isOpen, onClose, onA
     const rows = alerts.map((a) => ({
       ID: a.id,
       Transformer: a.transformer_id,
-      Zone: a.zone,
+      Substation: a.substation,
       Severity: a.severity,
       Category: a.category,
       Metric: a.triggering_metric,
@@ -196,7 +196,7 @@ export const AlertsDrawer: React.FC<AlertsDrawerProps> = ({ isOpen, onClose, onA
                       <span className="font-mono text-xs font-semibold text-slate-300">
                         {alert.transformer_id}
                       </span>
-                      <span className="text-xs text-slate-500">• {alert.zone}</span>
+                      <span className="text-xs text-slate-500">• {alert.substation}</span>
                     </div>
 
                     <div className="text-right text-[11px] text-slate-400">

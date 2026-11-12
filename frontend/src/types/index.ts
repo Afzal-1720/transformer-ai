@@ -1,271 +1,205 @@
-export type HealthStatus = 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'OFFLINE';
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type CommunicationStatus = 'ONLINE' | 'STALE' | 'OFFLINE';
-export type AlertSeverity = 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL';
-export type AlertStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
-export type AlertCategory = 'OVERLOAD' | 'TEMPERATURE' | 'VOLTAGE' | 'ANOMALY' | 'DATA_QUALITY' | 'COMMUNICATION';
-export type TaskPriority = 'P1_CRITICAL' | 'P2_HIGH' | 'P3_MEDIUM' | 'P4_ROUTINE';
-export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type ConditionCategory = 'GOOD' | 'FAIR' | 'DEGRADED' | 'CRITICAL';
-export type ScenarioVerdict = 'APPROVED' | 'WARNING' | 'REJECTED';
+export type SensorStatus = 'ONLINE' | 'STALE' | 'OFFLINE' | 'CONNECTION_LOST';
+export type OverallCondition = 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'INSPECTION_REQUIRED';
+export type AnomalySeverity = 'Critical' | 'Warning' | 'Informational';
+export type AnomalyType =
+  | 'OVER_VOLTAGE'
+  | 'UNDER_VOLTAGE'
+  | 'OVER_CURRENT'
+  | 'OVERHEATING'
+  | 'SUDDEN_LOAD_VARIATION'
+  | 'PHASE_IMBALANCE'
+  | 'SENSOR_CONNECTIVITY';
+
+export type InspectionPriority = 'Critical' | 'High' | 'Medium' | 'Routine';
+export type InspectionStatus = 'Pending' | 'Acknowledged' | 'Completed';
 
 export interface TransformerSpec {
   id: string;
   name: string;
-  zone: string;
-  rated_capacity_kva: number;
-  primary_voltage_kv: number;
-  secondary_voltage_kv: number;
+  substation: string;
+  rated_vrms: number;
+  rated_irms: number;
+  rated_kva: number;
   cooling_type: string;
   installation_year: number;
-  latitude: number;
-  longitude: number;
-  connected_substations: string[];
 }
 
+// =========================================================================
+// FUTURE HARDWARE INTEGRATION:
+// Telemetry structure matches the incoming hardware payload from connected
+// smart transformer sensors or IoT edge gateway.
+// =========================================================================
 export interface TelemetryReading {
-  timestamp: string;
   transformer_id: string;
-  voltage_v: number;
-  voltage_kv: number;
-  current_a: number;
-  active_power_kw: number;
-  apparent_power_kva: number;
-  reactive_power_kvar: number;
-  power_factor: number;
-  frequency_hz: number;
-  oil_temp_c: number;
-  winding_temp_c: number;
-  ambient_temp_c: number;
-  load_percentage: number;
-  communication_status: CommunicationStatus;
-  is_simulated: boolean;
+  timestamp: string;
+  vrms: number;
+  irms: number;
+  winding_hotspot_temperature: number;
+  moisture: number;
+  sensor_status: SensorStatus;
+  is_mock_data: boolean;
 }
 
 export interface TransformerDetail {
   spec: TransformerSpec;
   telemetry: TelemetryReading;
-  health_score: number;
-  health_status: HealthStatus;
-  risk_level: RiskLevel;
-  risk_score: number;
-  active_alerts_count: number;
-  is_simulated: boolean;
+  voltage_deviation_pct: number;
+  voltage_deviation_status: string;
+  supply_voltage_status: string;
+  current_deviation_pct: number;
+  current_condition: string;
+  loading_pct: number;
+  loading_condition: string;
+  thermal_condition: string;
+  voltage_behaviour: string;
+  overall_condition: OverallCondition;
+  condition_explanation: string;
+  recommended_action: string;
+  inspection_required: boolean;
+  active_anomalies_count: number;
+  is_mock_data: boolean;
+}
+
+export interface DetectedAnomaly {
+  id: string;
+  transformer_id: string;
+  anomaly_name: string;
+  anomaly_type: AnomalyType;
+  severity: AnomalySeverity;
+  detected_parameter: string;
+  measured_value: string;
+  applicable_threshold: string;
+  percentage_change?: number;
+  detection_time: string;
+  recommended_action: string;
+  is_mock_data: boolean;
+}
+
+export interface AnomalySummary {
+  transformer_id: string;
+  timestamp: string;
+  overall_condition: string;
+  anomalies: DetectedAnomaly[];
+  total_anomalies: number;
+  has_critical: boolean;
+  has_warning: boolean;
+  phase_imbalance_status: string;
+  is_mock_data: boolean;
+}
+
+export interface TransformerConditionReport {
+  transformer_id: string;
+  timestamp: string;
+  sensor_connectivity: string;
+  voltage_behaviour: string;
+  loading_condition: string;
+  thermal_condition: string;
+  overall_condition: OverallCondition;
+  condition_explanation: string;
+  recommended_action: string;
+  inspection_required: boolean;
+  vrms_measured: number;
+  vrms_rated: number;
+  voltage_deviation_pct: number;
+  irms_measured: number;
+  irms_rated: number;
+  current_deviation_pct: number;
+  loading_pct: number;
+  winding_hotspot_temperature: number;
+  moisture: number;
+  voltage_permissible_deviation: string;
+  statutory_supply_range: string;
+  configured_current_limit: string;
+  configured_loading_thresholds: string;
+  configured_thermal_thresholds: string;
+  is_mock_data: boolean;
+}
+
+export interface InspectionRecord {
+  id: string;
+  transformer_id: string;
+  transformer_name: string;
+  reason: string;
+  priority: InspectionPriority;
+  status: InspectionStatus;
+  detected_at: string;
+  recommended_action: string;
+  acknowledged_at?: string;
+  completed_at?: string;
+  assigned_technician: string;
+  notes?: string;
+  is_mock_data: boolean;
 }
 
 export interface Alert {
   id: string;
   transformer_id: string;
-  zone: string;
-  severity: AlertSeverity;
-  category: AlertCategory;
+  substation: string;
+  severity: 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL';
+  category: string;
   triggering_metric: string;
   triggering_value: number;
   threshold_value: number;
   unit: string;
   message: string;
   recommended_action: string;
-  status: AlertStatus;
+  inspection_recommended: boolean;
+  status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
   created_at: string;
   acknowledged_at?: string;
   resolved_at?: string;
-  is_simulated: boolean;
-}
-
-export interface ForecastDataPoint {
-  timestamp: string;
-  predicted_load_kw: number;
-  lower_bound_kw: number;
-  upper_bound_kw: number;
-  baseline_persistence_kw: number;
-}
-
-export interface ForecastMetrics {
-  mae_kw: number;
-  rmse_kw: number;
-  mape_pct: number;
-  baseline_mae_kw: number;
-  holdout_samples: number;
-}
-
-export interface ForecastResponse {
-  transformer_id: string;
-  generated_at: string;
-  metrics: ForecastMetrics;
-  historical_points: Array<{
-    timestamp: string;
-    active_power_kw: number;
-    load_percentage: number;
-  }>;
-  predictions_1h: ForecastDataPoint[];
-  predictions_6h: ForecastDataPoint[];
-  predictions_24h: ForecastDataPoint[];
-  model_name: string;
-  is_simulated: boolean;
-}
-
-export interface AnomalyContribution {
-  feature: string;
-  observed_value: number;
-  expected_range: string;
-  attribution_score: number;
-  impact_description: string;
-}
-
-export interface AnomalyDetectionResponse {
-  transformer_id: string;
-  timestamp: string;
-  is_anomaly: boolean;
-  anomaly_score: number;
-  severity: AlertSeverity;
-  contributing_features: AnomalyContribution[];
-  heuristic_observation: string;
-  recommended_checks: string[];
-  is_simulated: boolean;
-}
-
-export interface RiskFactorBreakdown {
-  factor_name: string;
-  weight_pct: number;
-  raw_metric: string;
-  sub_score: number;
-  weighted_points: number;
-  status: string;
-  explanation: string;
-}
-
-export interface ExplainableRiskResponse {
-  transformer_id: string;
-  timestamp: string;
-  overall_risk_score: number;
-  risk_level: RiskLevel;
-  breakdown: RiskFactorBreakdown[];
-  primary_risk_driver: string;
-  actionable_recommendations: string[];
-  disclaimer: string;
-  is_simulated: boolean;
-}
-
-export interface LoadTransferRequest {
-  source_id: string;
-  target_id: string;
-  transfer_kva: number;
-  safety_margin_pct?: number;
-}
-
-export interface LoadTransferResponse {
-  feasible: boolean;
-  verdict: ScenarioVerdict;
-  source_id: string;
-  target_id: string;
-  transfer_kva: number;
-  source_name: string;
-  target_name: string;
-  source_pre_load_kva: number;
-  source_post_load_kva: number;
-  source_pre_pct: number;
-  source_post_pct: number;
-  target_pre_load_kva: number;
-  target_post_load_kva: number;
-  target_pre_pct: number;
-  target_post_pct: number;
-  target_rated_kva: number;
-  target_remaining_headroom_kva: number;
-  pre_source_risk: number;
-  post_source_risk: number;
-  pre_target_risk: number;
-  post_target_risk: number;
-  explanation: string;
-  safety_warnings: string[];
-  interconnection_path: string[];
-  is_simulated: boolean;
-}
-
-export interface MaintenanceTask {
-  id: string;
-  transformer_id: string;
-  title: string;
-  description: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  assigned_technician: string;
-  scheduled_date: string;
-  completed_date?: string;
-  notes?: string;
-  created_at: string;
-  is_simulated: boolean;
-}
-
-export interface AssetHealthRecord {
-  transformer_id: string;
-  transformer_name: string;
-  zone: string;
-  rated_capacity_kva: number;
-  health_score: number;
-  condition_category: ConditionCategory;
-  maintenance_priority: TaskPriority;
-  last_inspection_date: string;
-  next_inspection_date: string;
-  open_tasks_count: number;
-  health_score_breakdown: Record<string, number>;
-  is_simulated: boolean;
+  is_mock_data: boolean;
 }
 
 export interface DashboardSummary {
   kpis: {
     total_transformers: number;
-    healthy_count: number;
-    warning_count: number;
-    critical_count: number;
+    online_transformers: number;
+    offline_transformers: number;
+    transformers_requiring_inspection: number;
+    active_critical_alerts: number;
+    total_active_alerts: number;
+    pending_inspections: number;
     avg_load_percentage: number;
-    active_alerts_count: number;
   };
-  health_distribution: {
+  fleet_condition: {
+    status: string;
+    description: string;
     healthy: number;
     warning: number;
     critical: number;
+    inspection_required: number;
   };
-  zone_distribution: Array<{
-    zone: string;
-    transformer_count: number;
-    total_rated_kva: number;
-    total_apparent_kva: number;
-    total_active_kw: number;
-    avg_load_percentage: number;
-  }>;
-  insights: {
-    highest_loaded_transformer: {
-      id: string;
-      name: string;
-      zone: string;
-      load_percentage: number;
-      apparent_power_kva: number;
-      rated_capacity_kva: number;
-      temperature_c: number;
-    } | null;
-    greatest_load_zone: {
-      zone: string;
-      avg_load_pct: number;
-      total_rated_kva: number;
-      total_apparent_kva: number;
-    } | null;
-    most_urgent_maintenance: {
-      id: string;
-      transformer_id: string;
-      title: string;
-      priority: string;
-      status: string;
-      scheduled_date: string;
-    } | null;
-  };
-  network_load_trend: Array<{
-    timestamp: string;
-    total_kw: number;
-    avg_temp_c: number;
-    avg_load_pct: number;
+  transformer_summaries: Array<{
+    id: string;
+    name: string;
+    substation: string;
+    vrms: number;
+    irms: number;
+    voltage_dev_pct: number;
+    voltage_status: string;
+    supply_status: string;
+    current_dev_pct: number;
+    loading_pct: number;
+    loading_condition: string;
+    winding_hotspot_temperature: number;
+    moisture: number;
+    thermal_condition: string;
+    sensor_status: string;
+    overall_condition: OverallCondition;
+    inspection_required: boolean;
+    condition_explanation: string;
+    recommended_action: string;
   }>;
   recent_alerts: Alert[];
-  is_simulated: boolean;
+  telemetry_trend: Array<{
+    timestamp: string;
+    avg_vrms: number;
+    avg_irms: number;
+    hotspot_temp_c: number;
+    moisture_pct: number;
+  }>;
+  is_mock_data: boolean;
 }
 
 export interface SimulationStatus {
@@ -277,5 +211,5 @@ export interface SimulationStatus {
     duration_sec: number;
     started_at: number;
   }>;
-  is_simulated: boolean;
+  is_mock_data: boolean;
 }
