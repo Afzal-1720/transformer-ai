@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -36,39 +36,21 @@ import {
 } from 'recharts';
 
 export const LiveMonitoringPage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const txParam = searchParams.get('tx') || 'TX-001';
+  const selectedTxId = 'TX-001';
 
   const { status, clearAnomaly } = useSimulation();
 
-  const [transformers, setTransformers] = useState<TransformerDetail[]>([]);
-  const [selectedTxId, setSelectedTxId] = useState<string>(txParam);
   const [txDetail, setTxDetail] = useState<TransformerDetail | null>(null);
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryReading[]>([]);
-  const [timeRangeLimit, setTimeRangeLimit] = useState<number>(60);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // Sync url param
-  useEffect(() => {
-    if (txParam && txParam !== selectedTxId) {
-      setSelectedTxId(txParam);
-    }
-  }, [txParam, selectedTxId]);
-
-  const handleSelectTransformer = (id: string) => {
-    setSelectedTxId(id);
-    setSearchParams({ tx: id });
-  };
 
   const loadData = useCallback(async () => {
     try {
-      const [fleet, detail, history] = await Promise.all([
-        api.getTransformers(),
+      const [detail, history] = await Promise.all([
         api.getTransformer(selectedTxId),
-        api.getTransformerTelemetry(selectedTxId, timeRangeLimit),
+        api.getTransformerTelemetry(selectedTxId, 60),
       ]);
-      setTransformers(fleet);
       setTxDetail(detail);
       setTelemetryHistory(history);
     } catch (err) {
@@ -76,7 +58,7 @@ export const LiveMonitoringPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedTxId, timeRangeLimit]);
+  }, [selectedTxId]);
 
   useEffect(() => {
     loadData();
@@ -144,7 +126,7 @@ export const LiveMonitoringPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header & Selector Bar */}
+      {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -157,27 +139,12 @@ export const LiveMonitoringPage: React.FC = () => {
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-400">
-            High-precision voltage deviation, current load analysis, winding hotspot telemetry, and statutory compliance checks.
+            High-precision voltage deviation, current load analysis, winding hotspot telemetry, and statutory compliance checks for the transformer station.
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center rounded-xl bg-slate-900 border border-slate-800 p-0.5 text-xs font-mono">
-            {[30, 60, 120].map((limit) => (
-              <button
-                key={limit}
-                onClick={() => setTimeRangeLimit(limit)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  timeRangeLimit === limit
-                    ? 'bg-cyan-500 text-slate-950'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {limit} pts
-              </button>
-            ))}
-          </div>
           <button
             onClick={() => navigate(`/anomalies?tx=${selectedTxId}`)}
             className="flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-3.5 py-2 text-xs font-semibold text-cyan-300 transition-all hover:bg-cyan-900/60"
@@ -194,50 +161,6 @@ export const LiveMonitoringPage: React.FC = () => {
             Export CSV
           </button>
         </div>
-      </div>
-
-      {/* Transformer Selector Strip */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {transformers.map((t) => {
-          const isSelected = t.spec.id === selectedTxId;
-          const isHealthy = t.overall_condition === 'HEALTHY';
-          const isCritical = t.overall_condition === 'CRITICAL';
-          const isInspect = t.overall_condition === 'INSPECTION_REQUIRED';
-
-          return (
-            <button
-              key={t.spec.id}
-              onClick={() => handleSelectTransformer(t.spec.id)}
-              className={`flex shrink-0 items-center gap-2.5 rounded-xl border px-3.5 py-2 transition-all ${
-                isSelected
-                  ? 'border-cyan-500 bg-cyan-950/40 shadow-[0_0_15px_rgba(0,242,254,0.15)]'
-                  : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-              }`}
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isCritical
-                    ? 'bg-rose-500 animate-ping'
-                    : isInspect
-                    ? 'bg-amber-400'
-                    : isHealthy
-                    ? 'bg-emerald-400'
-                    : 'bg-amber-400'
-                }`}
-              />
-              <div className="text-left">
-                <div
-                  className={`text-xs font-mono font-bold ${
-                    isSelected ? 'text-cyan-300' : 'text-slate-300'
-                  }`}
-                >
-                  {t.spec.id}
-                </div>
-                <div className="text-[10px] text-slate-500">{t.spec.substation}</div>
-              </div>
-            </button>
-          );
-        })}
       </div>
 
       {/* Active Anomaly Banner */}
@@ -284,7 +207,7 @@ export const LiveMonitoringPage: React.FC = () => {
         </div>
       )}
 
-      {/* Transformer Specifications Strip */}
+      {/* Monitored Transformer Station Nameplate Strip */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">

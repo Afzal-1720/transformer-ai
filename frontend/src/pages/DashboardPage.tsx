@@ -27,14 +27,6 @@ import {
   formatDateTime,
 } from '../utils/formatters';
 import type { DashboardSummary } from '../types';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -548,145 +540,47 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Fleet Telemetry Trend & Active Anomalies Row */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Fleet Average Telemetry Trend (2 Columns) */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-                24-Point Fleet Telemetry History
-              </h2>
-              <p className="text-xs text-slate-400">
-                Tracking average measured voltage (Vrms), current (Arms), and winding hotspot temperature.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-[11px] font-mono">
-              <span className="flex items-center gap-1 text-cyan-400">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" /> Vrms
-              </span>
-              <span className="flex items-center gap-1 text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" /> Arms
-              </span>
-              <span className="flex items-center gap-1 text-amber-400">
-                <span className="h-2 w-2 rounded-full bg-amber-400" /> Hotspot °C
-              </span>
-            </div>
+      {/* Recent Abnormal Conditions & Alert Notifications */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+              Recent Abnormal Conditions & Alerts
+            </h2>
+            <p className="text-xs text-slate-400">
+              Real-time detected fluctuations, statutory parameter excursions, and inspection recommendations.
+            </p>
           </div>
-
-          <div className="mt-4 h-64 w-full">
-            {summary?.telemetry_trend && summary.telemetry_trend.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={summary.telemetry_trend}>
-                  <XAxis
-                    dataKey="timestamp"
-                    tickFormatter={formatDateTime}
-                    stroke="#475569"
-                    fontSize={10}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    yAxisId="voltage"
-                    domain={[200, 270]}
-                    stroke="#475569"
-                    fontSize={10}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    yAxisId="current"
-                    orientation="right"
-                    stroke="#475569"
-                    fontSize={10}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload || !payload.length) return null;
-                      return (
-                        <div className="rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs shadow-xl">
-                          <p className="font-mono text-slate-400 mb-1">{formatDateTime(String(label || ''))}</p>
-                          {payload.map((item: any) => (
-                            <div key={item.dataKey} className="flex items-center justify-between gap-4 font-mono">
-                              <span style={{ color: item.color }}>{item.name}:</span>
-                              <span className="font-bold text-slate-200">
-                                {Number(item.value).toFixed(1)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }}
-                  />
-                  <Line
-                    yAxisId="voltage"
-                    type="monotone"
-                    dataKey="avg_vrms"
-                    name="Avg Vrms"
-                    stroke="#22d3ee"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="current"
-                    type="monotone"
-                    dataKey="avg_irms"
-                    name="Avg Arms"
-                    stroke="#34d399"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="current"
-                    type="monotone"
-                    dataKey="hotspot_temp_c"
-                    name="Hotspot Temp °C"
-                    stroke="#fbbf24"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 4"
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                Collecting historical telemetry data...
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/anomalies')}
+              className="text-xs font-semibold text-cyan-400 hover:underline"
+            >
+              Simulate Anomaly →
+            </button>
+            <button
+              onClick={() => navigate('/maintenance')}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors"
+            >
+              View Inspections →
+            </button>
           </div>
         </div>
 
-        {/* Recent Anomaly & Alert Notifications (1 Column) */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-                  Recent Abnormal Conditions
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Detected fluctuations and parameter excursions.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/maintenance')}
-                className="text-[11px] font-semibold text-cyan-400 hover:underline"
-              >
-                View Inspections →
-              </button>
+        <div className="mt-4">
+          {!summary?.recent_alerts || summary.recent_alerts.length === 0 ? (
+            <div className="py-10 text-center text-xs text-slate-500 rounded-lg border border-slate-800/80 bg-slate-950/60">
+              <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
+              No abnormal conditions detected. All transformers within normal limits.
             </div>
-
-            <div className="mt-4 space-y-2.5 max-h-72 overflow-y-auto">
-              {!summary?.recent_alerts || summary.recent_alerts.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">
-                  <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-emerald-500" />
-                  No abnormal conditions detected. All transformers within normal limits.
-                </div>
-              ) : (
-                summary.recent_alerts.slice(0, 5).map((alert) => (
-                  <div
-                    key={alert.id}
-                    className="rounded-lg border border-slate-800/80 bg-slate-950/70 p-3 text-xs transition-colors hover:border-slate-700"
-                  >
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {summary.recent_alerts.slice(0, 6).map((alert) => (
+                <div
+                  key={alert.id}
+                  className="rounded-lg border border-slate-800/80 bg-slate-950/70 p-3.5 text-xs transition-colors hover:border-slate-700 flex flex-col justify-between"
+                >
+                  <div>
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-mono font-bold text-slate-200">
                         {alert.transformer_id}
@@ -694,41 +588,31 @@ export const DashboardPage: React.FC = () => {
                       <span
                         className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
                           alert.severity === 'CRITICAL'
-                            ? 'bg-rose-950 text-rose-300'
-                            : 'bg-amber-950 text-amber-300'
+                            ? 'bg-rose-950 text-rose-300 border border-rose-800/60'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800/60'
                         }`}
                       >
                         {alert.severity}
                       </span>
                     </div>
 
-                    <p className="mt-1 font-medium text-slate-300">{alert.message}</p>
+                    <p className="mt-1.5 font-medium text-slate-300">{alert.message}</p>
 
-                    <div className="mt-2 rounded bg-slate-900 px-2 py-1 text-[11px] text-cyan-300">
+                    <div className="mt-2 rounded bg-slate-900 px-2 py-1.5 text-[11px] text-cyan-300 border border-slate-800">
                       <strong>Action:</strong> {alert.recommended_action}
                     </div>
-
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>{formatDateTime(alert.created_at)}</span>
-                      {alert.inspection_recommended && (
-                        <span className="font-bold text-amber-400">Inspection Advised</span>
-                      )}
-                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Need to test system response?</span>
-            <button
-              onClick={() => navigate('/anomalies')}
-              className="text-cyan-400 font-semibold hover:underline"
-            >
-              Simulate Anomaly →
-            </button>
-          </div>
+                  <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
+                    <span>{formatDateTime(alert.created_at)}</span>
+                    {alert.inspection_recommended && (
+                      <span className="font-bold text-amber-400">Inspection Advised</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

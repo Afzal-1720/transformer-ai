@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
           {!collapsed && (
             <div className="truncate">
               <h1 className="text-sm font-extrabold tracking-wider text-slate-100 uppercase">
-                TRANSFORMER <span className="text-cyan-400">AI</span>
+                TRANSFORMER
               </h1>
               <p className="text-[10px] text-slate-400 font-medium truncate">
                 Monitoring & Condition Assessment
