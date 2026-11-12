@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Play,
-  Pause,
   RotateCcw,
   Zap,
   Bell,
@@ -20,7 +18,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { status, activeAlertsCount, togglePause, setSpeed, resetFleet, refreshAlerts } = useSimulation();
+  const { status, activeAlertsCount, setSpeed, resetFleet, refreshAlerts } = useSimulation();
   const { theme, toggleTheme } = useTheme();
 
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -39,7 +37,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const isPaused = status?.is_paused ?? false;
   const currentSpeed = status?.speed_multiplier ?? 1.0;
   const activeAnomaliesCount = Object.keys(status?.active_anomalies || {}).length;
 
@@ -65,20 +62,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
         {/* Right: Simulation Controls & Tools */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Pause / Resume */}
-          <button
-            onClick={togglePause}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-              isPaused
-                ? 'bg-amber-950/40 border-amber-600/60 text-amber-300 hover:bg-amber-900/50'
-                : 'bg-emerald-950/40 border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/50'
-            }`}
-            title={isPaused ? 'Resume live grid simulation' : 'Pause grid simulation'}
-          >
-            {isPaused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5 fill-current" />}
-            <span className="hidden sm:inline">{isPaused ? 'RESUME' : 'PAUSE'}</span>
-          </button>
-
           {/* Speed selector */}
           <div className="hidden lg:flex items-center rounded-lg bg-slate-900 border border-slate-800 p-0.5 text-xs font-mono">
             {[1, 2, 5, 10].map((s) => (

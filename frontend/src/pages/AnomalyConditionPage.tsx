@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   Activity,
@@ -27,43 +27,26 @@ import {
 import type {
   TransformerConditionReport,
   AnomalySummary,
-  TransformerDetail,
   DetectedAnomaly,
 } from '../types';
 
 export const AnomalyConditionPage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const txParam = searchParams.get('tx') || 'TX-001';
+  const selectedTxId = 'TX-001';
 
   const { clearAnomaly } = useSimulation();
 
-  const [transformers, setTransformers] = useState<TransformerDetail[]>([]);
-  const [selectedTxId, setSelectedTxId] = useState<string>(txParam);
   const [conditionReport, setConditionReport] = useState<TransformerConditionReport | null>(null);
   const [anomalySummary, setAnomalySummary] = useState<AnomalySummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isInjectModalOpen, setIsInjectModalOpen] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (txParam && txParam !== selectedTxId) {
-      setSelectedTxId(txParam);
-    }
-  }, [txParam, selectedTxId]);
-
-  const handleSelectTransformer = (id: string) => {
-    setSelectedTxId(id);
-    setSearchParams({ tx: id });
-  };
-
   const loadData = useCallback(async () => {
     try {
-      const [fleet, report, anomalies] = await Promise.all([
-        api.getTransformers(),
+      const [report, anomalies] = await Promise.all([
         api.getTransformerCondition(selectedTxId),
         api.getTransformerAnomalies(selectedTxId),
       ]);
-      setTransformers(fleet);
       setConditionReport(report);
       setAnomalySummary(anomalies);
     } catch (err) {
@@ -147,50 +130,6 @@ export const AnomalyConditionPage: React.FC = () => {
             Reset Anomalies
           </button>
         </div>
-      </div>
-
-      {/* Transformer Selector Strip */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {transformers.map((t) => {
-          const isSelected = t.spec.id === selectedTxId;
-          const isHealthy = t.overall_condition === 'HEALTHY';
-          const isCritical = t.overall_condition === 'CRITICAL';
-          const isInspect = t.overall_condition === 'INSPECTION_REQUIRED';
-
-          return (
-            <button
-              key={t.spec.id}
-              onClick={() => handleSelectTransformer(t.spec.id)}
-              className={`flex shrink-0 items-center gap-2.5 rounded-xl border px-3.5 py-2 transition-all ${
-                isSelected
-                  ? 'border-cyan-500 bg-cyan-950/40 shadow-[0_0_15px_rgba(0,242,254,0.15)]'
-                  : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-              }`}
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isCritical
-                    ? 'bg-rose-500 animate-ping'
-                    : isInspect
-                    ? 'bg-amber-400'
-                    : isHealthy
-                    ? 'bg-emerald-400'
-                    : 'bg-amber-400'
-                }`}
-              />
-              <div className="text-left">
-                <div
-                  className={`text-xs font-mono font-bold ${
-                    isSelected ? 'text-cyan-300' : 'text-slate-300'
-                  }`}
-                >
-                  {t.spec.id}
-                </div>
-                <div className="text-[10px] text-slate-500">{t.spec.substation}</div>
-              </div>
-            </button>
-          );
-        })}
       </div>
 
       {/* SECTION 1: Overall Condition Assessment Banner */}
