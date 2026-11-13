@@ -1,12 +1,107 @@
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
-from app.models.transformer import TransformerDetail, TelemetryReading, TransformerSpec
+import math
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Body, HTTPException, Query
+from app.models.transformer import (
+    SensorStatus,
+    TransformerDetail,
+    TelemetryReading,
+    TransformerSpec,
+)
 from app.models.condition import TransformerConditionReport
 from app.models.anomaly import AnomalySummary
 from app.services.storage import storage
 from app.services.condition_evaluator import condition_evaluator
 
 router = APIRouter(prefix="/transformers", tags=["Transformers"])
+
+
+def _validate_numeric(value: Any, field_name: str, *, minimum: float, maximum: float) -> float:
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"{field_name} is required and must be numeric")
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a numeric value")
+    if math.isnan(numeric) or math.isinf(numeric):
+        raise ValueError(f"{field_name} must be a finite number")
+    if numeric < minimum or numeric > maximum:
+        raise ValueError(f"{field_name} must be between {minimum} and {maximum}")
+    return numeric
+
+
+def _normalize_hardware_telemetry(transformer_id: str, payload: Dict[str, Any]) -> TelemetryReading:
+    if not isinstance(payload, dict):
+        raise ValueError("Telemetry payload must be a JSON object")
+
+    incoming_transformer_id = payload.get("transformer_id", transformer_id)
+    if incoming_transformer_id and str(incoming_transformer_id) != transformer_id:
+        raise ValueError("Transformer ID in the payload does not match the route transformer ID")
+
+    if "temperature" in payload and "winding_hotspot_temperature" not in payload:
+        payload["winding_hotspot_temperature"] = payload["temperature"]
+
+    if "winding_hotspot_temperature" not in payload:
+        raise ValueError("Missing required field: winding_hotspot_temperature")
+
+    vrms = _validate_numeric(payload.get("vrms"), "vrms", minimum=0.0, maximum=500.0)
+    irms = _validate_numeric(payload.get("irms"), "irms", minimum=0.0, maximum=500.0)
+    hotspot = _validate_numeric(payload.get("winding_hotspot_temperature"), "winding_hotspot_temperature", minimum=-40.0, maximum=250.0)
+    moisture = _validate_numeric(payload.get("moisture"), "moisture", minimum=0.0, maximum=100.0)
+
+    sensor_status = payload.get("sensor_status", "ONLINE")
+    if not isinstance(sensor_status, str):
+        raise ValueError("sensor_status must be a string")
+    sensor_status = sensor_status.upper()
+    if sensor_status not in {status.value for status in SensorStatus}:
+        raise ValueError(f"sensor_status must be one of: {', '.join(status.value for status in SensorStatus)}")
+
+    timestamp_value = payload.get("timestamp")
+    if timestamp_value is None:
+        timestamp = datetime.now(timezone.utc)
+    else:
+        try:
+            timestamp = datetime.fromisoformat(str(timestamp_value).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("timestamp must be ISO 8601 formatted") from exc
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+    return TelemetryReading(
+        transformer_id=transformer_id,
+        timestamp=timestamp,
+        vrms=vrms,
+        irms=irms,
+        winding_hotspot_temperature=hotspot,
+        moisture=moisture,
+        sensor_status=sensor_status,
+        source="HARDWARE",
+        is_mock_data=False,
+    )
+
+
+@router.post("/{transformer_id}/telemetry")
+def ingest_transformer_telemetry(transformer_id: str, payload: Dict[str, Any] = Body(...)):
+    """Accept validated hardware telemetry from Arduino or other serial sensors."""
+    spec = storage.get_transformer(transformer_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail=f"Transformer {transformer_id} not found")
+
+    try:
+        telemetry = _normalize_hardware_telemetry(transformer_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    storage.record_telemetry(telemetry)
+    storage.set_telemetry_source(transformer_id, "HARDWARE")
+    return {
+        "success": True,
+        "transformer_id": transformer_id,
+        "source": "HARDWARE",
+        "message": "Telemetry received successfully",
+        "timestamp": telemetry.timestamp.isoformat(),
+    }
+
 
 @router.get("", response_model=List[TransformerDetail])
 def list_transformers(

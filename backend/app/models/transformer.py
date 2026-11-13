@@ -40,6 +40,7 @@ class TelemetryReading(BaseModel):
     winding_hotspot_temperature: float = Field(..., description="Winding Hotspot Temperature in °C (from sensor reading)")
     moisture: float = Field(..., description="Moisture in % RH (relative saturation in dielectric insulation)")
     sensor_status: str = Field(default="ONLINE", description="ONLINE, STALE, OFFLINE, CONNECTION_LOST")
+    source: str = Field(default="SIMULATION", description="Telemetry source: SIMULATION or HARDWARE")
     is_mock_data: bool = True
 
     # Note: As per project requirements, Top Oil Temperature (60°C) and Average Winding

@@ -194,6 +194,7 @@ class TelemetrySimulator:
             winding_hotspot_temperature=hotspot_temp,
             moisture=moisture_val,
             sensor_status=sensor_status,
+            source="SIMULATION",
             is_mock_data=True
         )
 
@@ -206,6 +207,14 @@ class TelemetrySimulator:
         results = {}
 
         for spec in INITIAL_TRANSFORMERS:
+            if storage.is_hardware_active(spec.id, max_age_seconds=120.0):
+                hardware_reading = storage.get_latest_telemetry(spec.id)
+                if hardware_reading:
+                    storage.record_telemetry(hardware_reading)
+                    self.last_valid_telemetry[spec.id] = hardware_reading
+                    results[spec.id] = hardware_reading
+                    continue
+
             reading = self._generate_physics_reading(spec, now, allow_anomaly=True)
             storage.record_telemetry(reading)
             self.last_valid_telemetry[spec.id] = reading

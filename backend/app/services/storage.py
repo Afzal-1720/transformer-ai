@@ -1,6 +1,6 @@
 import threading
 from typing import Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from app.models.transformer import TransformerSpec, TelemetryReading
 from app.models.alert import Alert, AlertStatus, AlertSeverity
 from app.models.inspection import InspectionRecord, InspectionStatus, InspectionPriority
@@ -11,6 +11,8 @@ class InMemoryStorage:
         self.transformers: Dict[str, TransformerSpec] = {}
         self.latest_telemetry: Dict[str, TelemetryReading] = {}
         self.telemetry_history: Dict[str, List[TelemetryReading]] = {}  # Max 600 items per transformer
+        self.telemetry_sources: Dict[str, str] = {}
+        self.hardware_last_seen: Dict[str, datetime] = {}
         self.alerts: Dict[str, Alert] = {}
         self.inspections: Dict[str, InspectionRecord] = {}
         self.sim_speed_multiplier: float = 1.0
@@ -36,6 +38,9 @@ class InMemoryStorage:
     def record_telemetry(self, telemetry: TelemetryReading, max_history: int = 500):
         with self._lock:
             self.latest_telemetry[telemetry.transformer_id] = telemetry
+            self.telemetry_sources[telemetry.transformer_id] = getattr(telemetry, "source", "SIMULATION")
+            if self.telemetry_sources[telemetry.transformer_id] == "HARDWARE":
+                self.hardware_last_seen[telemetry.transformer_id] = datetime.now(timezone.utc)
             history = self.telemetry_history.setdefault(telemetry.transformer_id, [])
             history.append(telemetry)
             if len(history) > max_history:
@@ -53,6 +58,22 @@ class InMemoryStorage:
         with self._lock:
             history = self.telemetry_history.get(transformer_id, [])
             return history[-limit:] if limit > 0 else history
+
+    def set_telemetry_source(self, transformer_id: str, source: str):
+        with self._lock:
+            self.telemetry_sources[transformer_id] = source
+            if source == "HARDWARE":
+                self.hardware_last_seen[transformer_id] = datetime.now(timezone.utc)
+
+    def is_hardware_active(self, transformer_id: str, max_age_seconds: float = 120.0) -> bool:
+        with self._lock:
+            source = self.telemetry_sources.get(transformer_id, "SIMULATION")
+            if source != "HARDWARE":
+                return False
+            last_seen = self.hardware_last_seen.get(transformer_id)
+            if not last_seen:
+                return False
+            return datetime.now(timezone.utc) - last_seen <= timedelta(seconds=max_age_seconds)
 
     # Alerts & Anomaly Notifications
     def add_alert(self, alert: Alert):
